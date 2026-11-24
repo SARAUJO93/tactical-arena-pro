@@ -1,11 +1,15 @@
 import { TeamId } from './EventBus';
 import { LruMap } from '../utils/helpers';
 
-export const STORAGE_KEY = 'tactical_arena_v2_2_elixir';
+export const STORAGE_KEY = 'tactical_arena_v2_3_league';
 export const MAX_BASE_HP = 3000;
 export const MAX_SIDE_DEFENSE_HP = 1350;
 export const METEOR_COIN_STEP = 500;
 export const DESIGN_W = 390;
+
+/* =====================================================================
+   ROSTER / BIOMES / GIFT SLOTS  (sin cambios de forma)
+   ===================================================================== */
 
 export interface TeamPreset {
   name: string;
@@ -69,6 +73,126 @@ export interface TelemetryData {
   wsLog: string[];
 }
 
+/* =====================================================================
+   FASE A — MODELO DE DATOS COMPETITIVO
+   ===================================================================== */
+
+/** Registro histórico (lifetime) de un viewer/jugador. */
+export interface PlayerRecord {
+  user: string;
+  avatarUrl: string;
+  favoriteTeam: TeamId | null;
+  lifetime: {
+    taps: number;
+    coins: number;
+    gifts: number;
+    follows: number;
+    shares: number;
+    kills: number;
+    baseDamage: number;
+    towerKills: number;
+  };
+  /** Acumuladores para leaderboards por periodo. Se resetean con resetIfNeeded(). */
+  period: {
+    coinsToday: number;
+    tapsToday: number;
+    coinsSeason: number;
+    tapsSeason: number;
+  };
+  peaks: {
+    maxSessionScore: number;
+    maxRoundScore: number;
+    maxTapsRound: number;
+    maxCoinsRound: number;
+  };
+  mvpSessions: number;
+  mvpRounds: number;
+  teamsSupported: Partial<Record<TeamId, number>>;
+  badges: string[];
+  firstSeen: number;
+  lastSeen: number;
+}
+
+/** Registro histórico de un equipo (nación / club). Persistente entre sesiones. */
+export interface TeamRecord {
+  key: string;
+  name: string;
+  flag: string;
+  color: string;
+  wins: number;
+  losses: number;
+  streak: number;
+  bestStreak: number;
+  championships: number;
+  elo: number;
+  totalCoinsSpent: number;
+  totalTaps: number;
+  lastPlayed: number;
+}
+
+/** Registro de un round finalizado. Se guardan los últimos MAX_ROUND_LOGS. */
+export interface RoundLog {
+  id: string;
+  ts: number;
+  durationSec: number;
+  winner: TeamId;
+  winnerKey: string;
+  winnerName: string;
+  loserKey: string;
+  loserName: string;
+  suddenDeath: boolean;
+  featured: boolean;
+  biome: string;
+  totalCoins: number;
+  totalTaps: number;
+  mvp: { user: string; avatarUrl: string; score: number } | null;
+  topGifter: { user: string; coins: number } | null;
+}
+
+/** Datos de una temporada (4 semanas). */
+export interface SeasonData {
+  index: number;
+  startDate: number;
+  endDate: number;
+  championKey: string | null;
+  championName: string | null;
+  championFlag: string | null;
+  championMvp: { user: string; avatarUrl: string; score: number } | null;
+  topMvps: MvpEntry[];
+  standings: Array<{
+    key: string;
+    name: string;
+    flag: string;
+    color: string;
+    points: number;
+    participation: number;
+    wins: number;
+    losses: number;
+  }>;
+}
+
+/** Récords globales históricos (no per-player). */
+export interface GlobalRecords {
+  biggestSingleRound: { coins: number; ts: number; winnerKey: string } | null;
+  fastestRound: { durationSec: number; ts: number; winnerKey: string } | null;
+  longestRound: { durationSec: number; ts: number; winnerKey: string } | null;
+  biggestUpset: { eloDiff: number; ts: number; winnerKey: string; loserKey: string } | null;
+}
+
+/* =====================================================================
+   CONSTANTES DE FASE A
+   ===================================================================== */
+
+export const MAX_ROUND_LOGS = 500;
+export const MAX_PLAYER_RECORDS = 200;
+export const MAX_SEASON_HISTORY = 12;
+export const SEASON_DURATION_DAYS = 28;
+export const ELO_INITIAL = 1500;
+export const ELO_K_FACTOR = 32;
+export const POINTS_WIN_NORMAL = 3;
+export const POINTS_WIN_FEATURED = 5;
+export const POINTS_PARTICIPATION = 1;
+
 export const WORLD_ROSTER: TeamPreset[] = [
   { name: 'MÉXICO', flag: '🇲🇽', key: 'MX', aliases: ['mx', 'mexico', 'méxico'], color: '#10B981' },
   { name: 'ARGENTINA', flag: '🇦🇷', key: 'AR', aliases: ['ar', 'arg', 'argentina'], color: '#38BDF8' },
@@ -129,6 +253,10 @@ export function makeBaseState(teamData: TeamPreset, isTop: boolean): BaseState {
   };
 }
 
+/* =====================================================================
+   STATE
+   ===================================================================== */
+
 export const state = {
   roster: structuredClone(WORLD_ROSTER) as TeamPreset[],
   rosterCursor: 2,
@@ -166,11 +294,41 @@ export const state = {
   shake: 0,
   screenFlash: 0,
 
+  /* ---------- IDs / tracking de sesión y round ---------- */
+  sessionId: Date.now(),
+  roundId: Date.now(),
+  currentRoundStart: Date.now(),
+  currentRoundCoins: 0,
+  currentRoundTaps: 0,
+  currentRoundGifterCoins: {} as Record<string, number>,
+  currentRoundBiome: 'grove' as string,
+
+  /* ---------- MVP actuales ---------- */
   sessionMVP: {} as Record<string, MvpEntry>,
   roundMVP: {} as Record<string, MvpEntry>,
+
+  /* ---------- FASE A: registros históricos ---------- */
+  playerRecords: {} as Record<string, PlayerRecord>,
+  teamRecords: {} as Record<string, TeamRecord>,
+  roundLogs: [] as RoundLog[],
+  seasonHistory: [] as SeasonData[],
+  currentSeason: makeInitialSeason(),
+  globalRecords: {
+    biggestSingleRound: null,
+    fastestRound: null,
+    longestRound: null,
+    biggestUpset: null,
+  } as GlobalRecords,
+
+  /* ---------- reset diario / temporada ---------- */
+  lastDailyReset: Date.now(),
+  lastSeasonReset: Date.now(),
+
+  /* ---------- LRUs de viewers ---------- */
   viewerTeams: new LruMap<string, TeamId>(500),
   viewerLikes: new LruMap<string, number>(500),
 
+  /* ---------- telemetría de sesión (compat) ---------- */
   telemetry: {
     sessionStart: Date.now(),
     totalCoins: 0,
@@ -183,6 +341,499 @@ export const state = {
   } as TelemetryData,
 };
 
+/* =====================================================================
+   FACTORIES / HELPERS DE TEMPORADA
+   ===================================================================== */
+
+function makeInitialSeason(): SeasonData {
+  const now = Date.now();
+  const end = now + SEASON_DURATION_DAYS * 24 * 60 * 60 * 1000;
+  return {
+    index: 1,
+    startDate: now,
+    endDate: end,
+    championKey: null,
+    championName: null,
+    championFlag: null,
+    championMvp: null,
+    topMvps: [],
+    standings: WORLD_ROSTER.map((t) => ({
+      key: t.key,
+      name: t.name,
+      flag: t.flag,
+      color: t.color,
+      points: 0,
+      participation: 0,
+      wins: 0,
+      losses: 0,
+    })),
+  };
+}
+
+function ensureStandingsEntry(season: SeasonData, team: TeamPreset) {
+  let e = season.standings.find((s) => s.key === team.key);
+  if (!e) {
+    e = {
+      key: team.key,
+      name: team.name,
+      flag: team.flag,
+      color: team.color,
+      points: 0,
+      participation: 0,
+      wins: 0,
+      losses: 0,
+    };
+    season.standings.push(e);
+  }
+  return e;
+}
+
+function emptyPlayerRecord(user: string, avatarUrl: string): PlayerRecord {
+  const now = Date.now();
+  return {
+    user,
+    avatarUrl,
+    favoriteTeam: null,
+    lifetime: {
+      taps: 0, coins: 0, gifts: 0, follows: 0, shares: 0,
+      kills: 0, baseDamage: 0, towerKills: 0,
+    },
+    period: { coinsToday: 0, tapsToday: 0, coinsSeason: 0, tapsSeason: 0 },
+    peaks: {
+      maxSessionScore: 0, maxRoundScore: 0,
+      maxTapsRound: 0, maxCoinsRound: 0,
+    },
+    mvpSessions: 0,
+    mvpRounds: 0,
+    teamsSupported: {},
+    badges: [],
+    firstSeen: now,
+    lastSeen: now,
+  };
+}
+
+function emptyTeamRecord(team: TeamPreset): TeamRecord {
+  return {
+    key: team.key,
+    name: team.name,
+    flag: team.flag,
+    color: team.color,
+    wins: 0,
+    losses: 0,
+    streak: 0,
+    bestStreak: 0,
+    championships: 0,
+    elo: ELO_INITIAL,
+    totalCoinsSpent: 0,
+    totalTaps: 0,
+    lastPlayed: 0,
+  };
+}
+
+function truncateUrl(url: string, max = 300): string {
+  if (!url) return '';
+  return url.length > max ? url.slice(0, max) : url;
+}
+
+/* =====================================================================
+   API PÚBLICA — PLAYER / TEAM RECORDS
+   ===================================================================== */
+
+export function ensurePlayerRecord(user: string, avatarUrl: string): PlayerRecord {
+  if (!user) throw new Error('ensurePlayerRecord: user requerido');
+  const cleanUser = user.slice(0, 64);
+  let rec = state.playerRecords[cleanUser];
+  if (!rec) {
+    rec = emptyPlayerRecord(cleanUser, truncateUrl(avatarUrl));
+    state.playerRecords[cleanUser] = rec;
+  } else {
+    if (avatarUrl) rec.avatarUrl = truncateUrl(avatarUrl);
+  }
+  rec.lastSeen = Date.now();
+  return rec;
+}
+
+export function ensureTeamRecord(team: TeamPreset): TeamRecord {
+  let rec = state.teamRecords[team.key];
+  if (!rec) {
+    rec = emptyTeamRecord(team);
+    state.teamRecords[team.key] = rec;
+  }
+  // Sync identidad por si el usuario editó nombre/flag/color
+  rec.name = team.name;
+  rec.flag = team.flag;
+  rec.color = team.color;
+  return rec;
+}
+
+/* =====================================================================
+   API PÚBLICA — TRACKING DE EVENTOS
+   ===================================================================== */
+
+export function recordTap(user: string, avatarUrl: string, team?: TeamId): void {
+  const rec = ensurePlayerRecord(user, avatarUrl);
+  rec.lifetime.taps += 1;
+  rec.period.tapsToday += 1;
+  rec.period.tapsSeason += 1;
+  if (team) {
+    rec.favoriteTeam = rec.favoriteTeam ?? team;
+    rec.teamsSupported[team] = (rec.teamsSupported[team] ?? 0) + 1;
+  }
+  state.telemetry.totalTaps += 1;
+  state.currentRoundTaps += 1;
+  state.globalTapCount += 1;
+}
+
+export function recordGift(user: string, avatarUrl: string, team: TeamId, coins: number): void {
+  const rec = ensurePlayerRecord(user, avatarUrl);
+  const safeCoins = Number.isFinite(coins) ? Math.max(0, coins) : 0;
+  rec.lifetime.gifts += 1;
+  rec.lifetime.coins += safeCoins;
+  rec.period.coinsToday += safeCoins;
+  rec.period.coinsSeason += safeCoins;
+  rec.favoriteTeam = rec.favoriteTeam ?? team;
+  rec.teamsSupported[team] = (rec.teamsSupported[team] ?? 0) + 1;
+  state.telemetry.totalGifts += 1;
+  state.telemetry.totalCoins += safeCoins;
+  state.currentRoundCoins += safeCoins;
+  state.currentRoundGifterCoins[user] = (state.currentRoundGifterCoins[user] ?? 0) + safeCoins;
+}
+
+export function recordFollow(user: string, avatarUrl: string): void {
+  const rec = ensurePlayerRecord(user, avatarUrl);
+  rec.lifetime.follows += 1;
+  state.telemetry.totalFollows += 1;
+}
+
+export function recordShare(user: string, avatarUrl: string): void {
+  const rec = ensurePlayerRecord(user, avatarUrl);
+  rec.lifetime.shares += 1;
+  state.telemetry.totalShares += 1;
+}
+
+/** Suma puntos al MVP de sesión y de round (llamar desde main.ts en cada gift/tap). */
+export function scoreMvp(user: string, avatarUrl: string, team: TeamId, delta: number): void {
+  if (!user || delta <= 0) return;
+  const rec = ensurePlayerRecord(user, avatarUrl);
+
+  const s = state.sessionMVP[user] ?? { user, team, avatarUrl: rec.avatarUrl, score: 0 };
+  s.score += delta;
+  s.team = team;
+  if (avatarUrl) s.avatarUrl = truncateUrl(avatarUrl);
+  state.sessionMVP[user] = s;
+
+  const r = state.roundMVP[user] ?? { user, team, avatarUrl: rec.avatarUrl, score: 0 };
+  r.score += delta;
+  r.team = team;
+  if (avatarUrl) r.avatarUrl = truncateUrl(avatarUrl);
+  state.roundMVP[user] = r;
+
+  if (s.score > rec.peaks.maxSessionScore) rec.peaks.maxSessionScore = s.score;
+  if (r.score > rec.peaks.maxRoundScore) rec.peaks.maxRoundScore = r.score;
+}
+
+/* =====================================================================
+   CICLO DE ROUND
+   ===================================================================== */
+
+export function beginRound(biome: string): void {
+  state.roundActive = true;
+  state.roundTimeLeft = state.suddenDeathDurationSec;
+  state.suddenDeathActive = false;
+  state.frenzyActive = false;
+  state.frenzyTimeLeft = 0;
+  state.globalTapCount = 0;
+  state.roundMVP = {};
+  state.currentRoundStart = Date.now();
+  state.currentRoundCoins = 0;
+  state.currentRoundTaps = 0;
+  state.currentRoundGifterCoins = {};
+  state.currentRoundBiome = biome;
+  state.roundId = Date.now();
+  state.teamA.hp = MAX_BASE_HP;
+  state.teamB.hp = MAX_BASE_HP;
+  state.teamA.sideDefenses.forEach((sd) => { sd.hp = sd.maxHp; sd.flash = 0; });
+  state.teamB.sideDefenses.forEach((sd) => { sd.hp = sd.maxHp; sd.flash = 0; });
+}
+
+export interface FinalizeRoundOptions {
+  featured?: boolean;
+  suddenDeath?: boolean;
+}
+
+/**
+ * Cierra el round actual:
+ *  - Actualiza teamRecords (W/L/streak/bestStreak/ELO).
+ *  - Escribe un RoundLog con MVP, topGifter, coins y taps.
+ *  - Actualiza currentSeason.standings + topMvps.
+ *  - Actualiza globalRecords.
+ *  - Resetea roundMVP para el siguiente round.
+ *  - Llama savePersistentState().
+ */
+export function finalizeRound(winner: TeamId, opts: FinalizeRoundOptions = {}): RoundLog {
+  const featured = Boolean(opts.featured);
+  const suddenDeath = Boolean(opts.suddenDeath);
+  const durationSec = Math.max(1, Math.round((Date.now() - state.currentRoundStart) / 1000));
+  const winnerBase = winner === 'A' ? state.teamA : state.teamB;
+  const loserBase = winner === 'A' ? state.teamB : state.teamA;
+  const winnerTeam = ensureTeamRecord(winnerBase);
+  const loserTeam = ensureTeamRecord(loserBase);
+
+  /* ---- 1. TeamRecords ---- */
+  winnerTeam.wins += 1;
+  winnerTeam.streak += 1;
+  if (winnerTeam.streak > winnerTeam.bestStreak) winnerTeam.bestStreak = winnerTeam.streak;
+  winnerTeam.lastPlayed = Date.now();
+  winnerTeam.totalCoinsSpent += state.currentRoundCoins;
+  winnerTeam.totalTaps += state.currentRoundTaps;
+
+  loserTeam.losses += 1;
+  loserTeam.streak = 0;
+  loserTeam.lastPlayed = Date.now();
+
+  /* ---- 2. ELO ---- */
+  const expWinner = 1 / (1 + Math.pow(10, (loserTeam.elo - winnerTeam.elo) / 400));
+  const eloDiff = Math.abs(winnerTeam.elo - loserTeam.elo);
+  winnerTeam.elo = Math.round(winnerTeam.elo + ELO_K_FACTOR * (1 - expWinner));
+  loserTeam.elo = Math.round(loserTeam.elo - ELO_K_FACTOR * (1 - expWinner));
+
+  /* ---- 3. GlobalRecords ---- */
+  if (!state.globalRecords.biggestSingleRound || state.currentRoundCoins > state.globalRecords.biggestSingleRound.coins) {
+    state.globalRecords.biggestSingleRound = { coins: state.currentRoundCoins, ts: Date.now(), winnerKey: winnerTeam.key };
+  }
+  if (!state.globalRecords.fastestRound || durationSec < state.globalRecords.fastestRound.durationSec) {
+    state.globalRecords.fastestRound = { durationSec, ts: Date.now(), winnerKey: winnerTeam.key };
+  }
+  if (!state.globalRecords.longestRound || durationSec > state.globalRecords.longestRound.durationSec) {
+    state.globalRecords.longestRound = { durationSec, ts: Date.now(), winnerKey: winnerTeam.key };
+  }
+  if (eloDiff > 0 && (!state.globalRecords.biggestUpset || eloDiff > state.globalRecords.biggestUpset.eloDiff)) {
+    state.globalRecords.biggestUpset = {
+      eloDiff, ts: Date.now(),
+      winnerKey: winnerTeam.key, loserKey: loserTeam.key,
+    };
+  }
+
+  /* ---- 4. MVP del round ---- */
+  const roundMvpList = Object.values(state.roundMVP).sort((a, b) => b.score - a.score);
+  const roundMvp = roundMvpList[0] ?? null;
+  const roundTopGifter = (() => {
+    const entries = Object.entries(state.currentRoundGifterCoins)
+      .sort((a, b) => b[1] - a[1]);
+    if (entries.length === 0) return null;
+    return { user: entries[0][0], coins: entries[0][1] };
+  })();
+
+  if (roundMvp) {
+    const rec = ensurePlayerRecord(roundMvp.user, roundMvp.avatarUrl);
+    rec.mvpRounds += 1;
+  }
+
+  /* ---- 5. RoundLog ---- */
+  const log: RoundLog = {
+    id: `r_${state.roundId}`,
+    ts: Date.now(),
+    durationSec,
+    winner,
+    winnerKey: winnerTeam.key,
+    winnerName: winnerTeam.name,
+    loserKey: loserTeam.key,
+    loserName: loserTeam.name,
+    suddenDeath,
+    featured,
+    biome: state.currentRoundBiome,
+    totalCoins: state.currentRoundCoins,
+    totalTaps: state.currentRoundTaps,
+    mvp: roundMvp ? { user: roundMvp.user, avatarUrl: roundMvp.avatarUrl, score: roundMvp.score } : null,
+    topGifter: roundTopGifter,
+  };
+  state.roundLogs.unshift(log);
+  if (state.roundLogs.length > MAX_ROUND_LOGS) state.roundLogs.length = MAX_ROUND_LOGS;
+
+  /* ---- 6. Temporada actual ---- */
+  const season = state.currentSeason;
+  const winEntry = ensureStandingsEntry(season, winnerBase);
+  const loseEntry = ensureStandingsEntry(season, loserBase);
+  winEntry.wins += 1;
+  winEntry.points += featured ? POINTS_WIN_FEATURED : POINTS_WIN_NORMAL;
+  winEntry.participation += 1;
+  loseEntry.losses += 1;
+  loseEntry.participation += 1;
+  if (roundMvp) {
+    season.topMvps.push({ ...roundMvp });
+    season.topMvps.sort((a, b) => b.score - a.score);
+    if (season.topMvps.length > 100) season.topMvps.length = 100;
+  }
+
+  /* ---- 7. Reset round-local ---- */
+  state.roundMVP = {};
+  state.currentRoundStart = Date.now();
+  state.currentRoundCoins = 0;
+  state.currentRoundTaps = 0;
+  state.currentRoundGifterCoins = {};
+  state.roundActive = false;
+
+  savePersistentState();
+  return log;
+}
+
+/* =====================================================================
+   CICLO DE SESIÓN / DÍA / TEMPORADA
+   ===================================================================== */
+
+/** Llamar al inicio de cada live (nuevo stream). NO borra históricos. */
+export function resetSession(): void {
+  // Si quedó un round abierto, lo cerramos sin ganador
+  if (state.roundActive) state.roundActive = false;
+
+  state.sessionMVP = {};
+  state.roundMVP = {};
+  state.currentRoundGifterCoins = {};
+  state.viewerTeams = new LruMap<string, TeamId>(500);
+  state.viewerLikes = new LruMap<string, number>(500);
+
+  state.telemetry = {
+    sessionStart: Date.now(),
+    totalCoins: 0,
+    totalGifts: 0,
+    totalTaps: 0,
+    totalFollows: 0,
+    totalShares: 0,
+    giftBreakdown: {},
+    wsLog: [],
+  };
+
+  state.sessionId = Date.now();
+  state.nextMeteorCoinTarget = METEOR_COIN_STEP;
+  state.meteorRainRemaining = 0;
+  state.lastRealInteractionAt = Date.now();
+
+  savePersistentState();
+}
+
+/** Reset diario: solo campos period.today*. */
+export function resetDaily(): void {
+  for (const rec of Object.values(state.playerRecords)) {
+    rec.period.coinsToday = 0;
+    rec.period.tapsToday = 0;
+  }
+  state.lastDailyReset = Date.now();
+}
+
+/** Cierra temporada actual: corona campeón y archiva. */
+export function closeCurrentSeason(): void {
+  const season = state.currentSeason;
+  if (season.standings.length === 0) return;
+
+  const sorted = [...season.standings].sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    return b.wins - a.wins;
+  });
+  const champ = sorted[0];
+  if (!champ) return;
+
+  season.championKey = champ.key;
+  season.championName = champ.name;
+  season.championFlag = champ.flag;
+
+  const topMvp = season.topMvps[0] ?? null;
+  season.championMvp = topMvp ? { user: topMvp.user, avatarUrl: topMvp.avatarUrl, score: topMvp.score } : null;
+
+  const teamRec = state.teamRecords[champ.key];
+  if (teamRec) teamRec.championships += 1;
+
+  state.seasonHistory.push(structuredClone(season));
+  if (state.seasonHistory.length > MAX_SEASON_HISTORY) state.seasonHistory.shift();
+
+  state.lastSeasonReset = Date.now();
+}
+
+/** Arranca una temporada nueva limpia. */
+export function startNewSeason(): void {
+  const nextIndex = (state.currentSeason.index || 0) + 1;
+  const now = Date.now();
+  state.currentSeason = {
+    index: nextIndex,
+    startDate: now,
+    endDate: now + SEASON_DURATION_DAYS * 24 * 60 * 60 * 1000,
+    championKey: null,
+    championName: null,
+    championFlag: null,
+    championMvp: null,
+    topMvps: [],
+    standings: state.roster.map((t) => ({
+      key: t.key,
+      name: t.name,
+      flag: t.flag,
+      color: t.color,
+      points: 0,
+      participation: 0,
+      wins: 0,
+      losses: 0,
+    })),
+  };
+}
+
+/** Chequea si hace falta cerrar día o temporada. Llamar al inicio del live y en finalizeRound. */
+export function resetIfNeeded(): void {
+  const today = new Date().toDateString();
+  const lastDay = new Date(state.lastDailyReset).toDateString();
+  if (today !== lastDay) resetDaily();
+
+  if (Date.now() > state.currentSeason.endDate) {
+    closeCurrentSeason();
+    startNewSeason();
+    savePersistentState();
+  }
+}
+
+/* =====================================================================
+   LEADERBOARDS (helpers puros para UI)
+   ===================================================================== */
+
+export function getTopMVPs(limit = 3): MvpEntry[] {
+  return Object.values(state.sessionMVP)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+
+export function getTopPlayers(limit = 50): PlayerRecord[] {
+  const score = (p: PlayerRecord) =>
+    p.mvpSessions * 100 +
+    p.mvpRounds * 10 +
+    p.peaks.maxSessionScore +
+    p.lifetime.coins * 0.5 +
+    p.lifetime.taps * 0.05;
+  return Object.values(state.playerRecords)
+    .sort((a, b) => score(b) - score(a))
+    .slice(0, limit);
+}
+
+export function getTopGifters(period: 'today' | 'season' | 'lifetime' = 'season', limit = 10): Array<{ user: string; avatarUrl: string; coins: number }> {
+  const key = (p: PlayerRecord): number =>
+    period === 'today' ? p.period.coinsToday : period === 'season' ? p.period.coinsSeason : p.lifetime.coins;
+  return Object.values(state.playerRecords)
+    .filter((p) => key(p) > 0)
+    .sort((a, b) => key(b) - key(a))
+    .slice(0, limit)
+    .map((p) => ({ user: p.user, avatarUrl: p.avatarUrl, coins: key(p) }));
+}
+
+export function getStandings(): SeasonData['standings'] {
+  return [...state.currentSeason.standings].sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    return b.wins - a.wins;
+  });
+}
+
+export function getRecentRounds(limit = 10): RoundLog[] {
+  return state.roundLogs.slice(0, limit);
+}
+
+/* =====================================================================
+   PERSISTENCIA
+   ===================================================================== */
+
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function savePersistentState(): void {
@@ -192,11 +843,17 @@ export function savePersistentState(): void {
 
 export function saveNow(): void {
   if (saveTimer) clearTimeout(saveTimer);
+
   const top20Mvp: Record<string, MvpEntry> = {};
   Object.values(state.sessionMVP)
     .sort((a, b) => b.score - a.score)
     .slice(0, 20)
     .forEach((m) => (top20Mvp[m.user] = m));
+
+  // Solo persistimos los TOP N players por score para no reventar localStorage
+  const topPlayersEntries = getTopPlayers(MAX_PLAYER_RECORDS)
+    .map((p) => [p.user, { ...p, avatarUrl: truncateUrl(p.avatarUrl) }] as const);
+  const playerRecordsToSave = Object.fromEntries(topPlayersEntries);
 
   try {
     localStorage.setItem(
@@ -226,38 +883,129 @@ export function saveNow(): void {
         ttsEnabled: state.ttsEnabled,
         sessionMVP: top20Mvp,
         telemetry: { ...state.telemetry, elapsedMs: Date.now() - state.telemetry.sessionStart },
+
+        // Fase A
+        playerRecords: playerRecordsToSave,
+        teamRecords: state.teamRecords,
+        roundLogs: state.roundLogs,
+        seasonHistory: state.seasonHistory,
+        currentSeason: state.currentSeason,
+        globalRecords: state.globalRecords,
+        lastDailyReset: state.lastDailyReset,
+        lastSeasonReset: state.lastSeasonReset,
       })
     );
   } catch {
-    // Ignorar errores de cuota en OBS/Private mode
+    // Cuota llena / OBS private mode: ignorar silenciosamente
   }
 }
 
 export function loadPersistentState(): void {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    const d = JSON.parse(raw);
-    if (Array.isArray(d.roster) && d.roster.length >= 2) state.roster = d.roster;
-    if (typeof d.rosterCursor === 'number') state.rosterCursor = d.rosterCursor;
-    if (typeof d.tournamentMode === 'boolean') state.tournamentMode = d.tournamentMode;
-    if (d.teamA) Object.assign(state.teamA, d.teamA);
-    if (d.teamB) Object.assign(state.teamB, d.teamB);
-    if (Array.isArray(d.giftSlots) && d.giftSlots.length === 8) state.giftSlots = d.giftSlots;
-    if (typeof d.personalTapThreshold === 'number') state.personalTapThreshold = d.personalTapThreshold;
-    if (typeof d.frenzyGoalLikes === 'number') state.frenzyGoalLikes = d.frenzyGoalLikes;
-    if (typeof d.unalignedTapSupportsUnderdog === 'boolean') state.unalignedTapSupportsUnderdog = d.unalignedTapSupportsUnderdog;
-    if (typeof d.aiDirectorEnabled === 'boolean') state.aiDirectorEnabled = d.aiDirectorEnabled;
-    if (typeof d.audioEnabled === 'boolean') state.audioEnabled = d.audioEnabled;
-    if (typeof d.musicMode === 'string') state.musicMode = d.musicMode as typeof state.musicMode;
-    if (typeof d.musicVolume === 'number') state.musicVolume = d.musicVolume;
-    if (typeof d.ttsEnabled === 'boolean') state.ttsEnabled = d.ttsEnabled;
-    if (d.sessionMVP && typeof d.sessionMVP === 'object') state.sessionMVP = d.sessionMVP;
-    if (d.telemetry && typeof d.telemetry === 'object') {
-      Object.assign(state.telemetry, d.telemetry);
-      state.telemetry.sessionStart = Date.now() - (Number(d.telemetry.elapsedMs) || 0);
+    // Migración desde la key anterior (v2.2 → v2.3)
+    const LEGACY_KEY = 'tactical_arena_v2_2_elixir';
+    let raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      const legacy = localStorage.getItem(LEGACY_KEY);
+      if (legacy) {
+        raw = legacy;
+        try { localStorage.setItem(STORAGE_KEY, legacy); } catch { /* noop */ }
+      }
+    }
+    if (!raw) {
+      resetIfNeeded();
+      return;
+    }
+    const d: unknown = JSON.parse(raw);
+    if (!d || typeof d !== 'object' || Array.isArray(d)) throw new Error('Persisted state is not an object');
+    const persisted = d as Record<string, unknown>;
+    const finiteNumber = (value: unknown): value is number =>
+      typeof value === 'number' && Number.isFinite(value);
+    const isTeamPreset = (value: unknown): value is TeamPreset =>
+      !!value && typeof value === 'object' &&
+      typeof (value as TeamPreset).name === 'string' &&
+      typeof (value as TeamPreset).flag === 'string' &&
+      typeof (value as TeamPreset).key === 'string' &&
+      Array.isArray((value as TeamPreset).aliases) &&
+      typeof (value as TeamPreset).color === 'string';
+    const isGiftSlot = (value: unknown): value is GiftSlot =>
+      !!value && typeof value === 'object' &&
+      typeof (value as GiftSlot).id === 'string' &&
+      typeof (value as GiftSlot).tier === 'number' &&
+      typeof (value as GiftSlot).matchers === 'string' &&
+      typeof (value as GiftSlot).display === 'string';
+
+    if (Array.isArray(persisted.roster) && persisted.roster.length >= 2) {
+      const roster = persisted.roster.filter(isTeamPreset).slice(0, 50);
+      if (roster.length >= 2) state.roster = roster;
+    }
+    if (finiteNumber(persisted.rosterCursor)) state.rosterCursor = Math.max(0, Math.floor(persisted.rosterCursor));
+    if (typeof persisted.tournamentMode === 'boolean') state.tournamentMode = persisted.tournamentMode;
+    if (persisted.teamA && typeof persisted.teamA === 'object') {
+      const teamA = persisted.teamA as Record<string, unknown>;
+      if (typeof teamA.name === 'string') state.teamA.name = teamA.name.slice(0, 64);
+      if (typeof teamA.flag === 'string') state.teamA.flag = teamA.flag.slice(0, 16);
+      if (typeof teamA.key === 'string') state.teamA.key = teamA.key.slice(0, 16);
+      if (Array.isArray(teamA.aliases)) state.teamA.aliases = teamA.aliases.filter((v): v is string => typeof v === 'string');
+      if (typeof teamA.color === 'string') state.teamA.color = teamA.color.slice(0, 32);
+      if (finiteNumber(teamA.wins)) state.teamA.wins = Math.max(0, Math.floor(teamA.wins));
+      if (finiteNumber(teamA.streak)) state.teamA.streak = Math.max(0, Math.floor(teamA.streak));
+    }
+    if (persisted.teamB && typeof persisted.teamB === 'object') {
+      const teamB = persisted.teamB as Record<string, unknown>;
+      if (typeof teamB.name === 'string') state.teamB.name = teamB.name.slice(0, 64);
+      if (typeof teamB.flag === 'string') state.teamB.flag = teamB.flag.slice(0, 16);
+      if (typeof teamB.key === 'string') state.teamB.key = teamB.key.slice(0, 16);
+      if (Array.isArray(teamB.aliases)) state.teamB.aliases = teamB.aliases.filter((v): v is string => typeof v === 'string');
+      if (typeof teamB.color === 'string') state.teamB.color = teamB.color.slice(0, 32);
+      if (finiteNumber(teamB.wins)) state.teamB.wins = Math.max(0, Math.floor(teamB.wins));
+      if (finiteNumber(teamB.streak)) state.teamB.streak = Math.max(0, Math.floor(teamB.streak));
+    }
+    if (Array.isArray(persisted.giftSlots)) {
+      const giftSlots = persisted.giftSlots.filter(isGiftSlot).slice(0, 8);
+      if (giftSlots.length === 8) state.giftSlots = giftSlots;
+    }
+    if (finiteNumber(persisted.personalTapThreshold)) state.personalTapThreshold = Math.max(5, Math.min(100, Math.floor(persisted.personalTapThreshold)));
+    if (finiteNumber(persisted.frenzyGoalLikes)) state.frenzyGoalLikes = Math.max(25, Math.min(500, Math.floor(persisted.frenzyGoalLikes)));
+    if (typeof persisted.unalignedTapSupportsUnderdog === 'boolean') state.unalignedTapSupportsUnderdog = persisted.unalignedTapSupportsUnderdog;
+    if (typeof persisted.aiDirectorEnabled === 'boolean') state.aiDirectorEnabled = persisted.aiDirectorEnabled;
+    if (typeof persisted.audioEnabled === 'boolean') state.audioEnabled = persisted.audioEnabled;
+    if (persisted.musicMode === 'starfox' || persisted.musicMode === 'pulse' || persisted.musicMode === 'mp3' || persisted.musicMode === 'off') state.musicMode = persisted.musicMode;
+    if (finiteNumber(persisted.musicVolume)) state.musicVolume = Math.max(0, Math.min(1, persisted.musicVolume));
+    if (typeof persisted.ttsEnabled === 'boolean') state.ttsEnabled = persisted.ttsEnabled;
+    if (persisted.sessionMVP && typeof persisted.sessionMVP === 'object') state.sessionMVP = persisted.sessionMVP as Record<string, MvpEntry>;
+    if (persisted.telemetry && typeof persisted.telemetry === 'object') {
+      const telemetry = persisted.telemetry as Record<string, unknown>;
+      for (const key of ['totalCoins', 'totalGifts', 'totalTaps', 'totalFollows', 'totalShares'] as const) {
+        if (finiteNumber(telemetry[key])) state.telemetry[key] = Math.max(0, telemetry[key]);
+      }
+      if (Array.isArray(telemetry.wsLog)) {
+        state.telemetry.wsLog = telemetry.wsLog
+          .filter((entry): entry is string => typeof entry === 'string')
+          .slice(0, 40);
+      }
+      if (finiteNumber(telemetry.elapsedMs)) state.telemetry.sessionStart = Date.now() - Math.max(0, telemetry.elapsedMs);
     }
     state.nextMeteorCoinTarget = (Math.floor(state.telemetry.totalCoins / METEOR_COIN_STEP) + 1) * METEOR_COIN_STEP;
+
+    // Fase A
+    if (persisted.playerRecords && typeof persisted.playerRecords === 'object') {
+      state.playerRecords = persisted.playerRecords as Record<string, PlayerRecord>;
+    }
+    if (persisted.teamRecords && typeof persisted.teamRecords === 'object') {
+      state.teamRecords = persisted.teamRecords as Record<string, TeamRecord>;
+    }
+    if (Array.isArray(persisted.roundLogs)) state.roundLogs = persisted.roundLogs.slice(0, MAX_ROUND_LOGS) as RoundLog[];
+    if (Array.isArray(persisted.seasonHistory)) state.seasonHistory = persisted.seasonHistory.slice(-MAX_SEASON_HISTORY) as SeasonData[];
+    if (persisted.currentSeason && typeof persisted.currentSeason === 'object') state.currentSeason = persisted.currentSeason as SeasonData;
+    if (persisted.globalRecords && typeof persisted.globalRecords === 'object') state.globalRecords = persisted.globalRecords as GlobalRecords;
+    if (finiteNumber(persisted.lastDailyReset)) state.lastDailyReset = persisted.lastDailyReset;
+    if (finiteNumber(persisted.lastSeasonReset)) state.lastSeasonReset = persisted.lastSeasonReset;
+
+    // Garantizar todos los teamRecords del roster actual
+    state.roster.forEach((t) => ensureTeamRecord(t));
+
+    resetIfNeeded();
   } catch {
     // Estado corrupto: arrancar limpio
   }

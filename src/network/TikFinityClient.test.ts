@@ -183,4 +183,32 @@ describe('TikFinityClient', () => {
     expect(() => ws.emitMessage('{json roto')).not.toThrow();
     expect(gifts).toHaveLength(0);
   });
+
+  it('acota payloads directos fuera de rango', () => {
+    const gifts: GameEvents['game:gift'][] = [];
+    unsubs.push(bus.on('game:gift', (g) => gifts.push(g)));
+
+    client.connect('ws://localhost:21213/');
+    const ws = FakeWebSocket.instances[0];
+
+    ws.emitMessage({
+      team: 'b',
+      tier: 999,
+      count: 999999,
+      user: 'u'.repeat(100),
+      gift: 'g'.repeat(100),
+      coins: 999999999,
+      avatar: 'a'.repeat(400),
+    });
+
+    expect(gifts).toHaveLength(1);
+    expect(gifts[0]).toMatchObject({
+      team: 'B',
+      tier: 7,
+      delta: 1000,
+      coins: 1000000,
+    });
+    expect(gifts[0].user).toHaveLength(64);
+    expect(gifts[0].giftName).toHaveLength(64);
+  });
 });

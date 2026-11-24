@@ -55,11 +55,11 @@ export interface GameEvents {
 type Listener<T> = (payload: T) => void;
 
 class EventBus {
-  private listeners = new Map<keyof GameEvents, Listener<never>[]>();
+  private listeners = new Map<keyof GameEvents, Array<(payload: never) => void>>();
 
   on<K extends keyof GameEvents>(event: K, callback: Listener<GameEvents[K]>): () => void {
     const list = this.listeners.get(event) ?? [];
-    list.push(callback as Listener<never>);
+    list.push(callback as (payload: never) => void);
     this.listeners.set(event, list);
     return () => {
       const current = this.listeners.get(event);
@@ -73,7 +73,7 @@ class EventBus {
   }
 
   emit<K extends keyof GameEvents>(event: K, payload: GameEvents[K]): void {
-    this.listeners.get(event)?.forEach((cb) => (cb as Listener<GameEvents[K]>)(payload));
+    this.listeners.get(event)?.forEach((cb) => cb(payload as never));
   }
 }
 

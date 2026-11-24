@@ -15,7 +15,7 @@
     <div id="frenzyVignette"></div>
     <div id="suddenDeathVignette"></div>
 
-    <!-- WHALE CINEMATIC TAKEOVER (3 SEGUNDOS) -->
+    <!-- WHALE CINEMATIC TAKEOVER -->
     <div id="whaleTakeover" class="hidden">
       <div class="takeover-card">
         <div style="font-size:9px;font-weight:900;letter-spacing:0.22em;color:#FCD34D;margin-bottom:8px;">⚡ COMANDANTE SUPREMO ⚡</div>
@@ -46,12 +46,13 @@
           </button>
           <button id="btnQuickSafe" class="glass-soft util-btn" style="color:#FDA4AF;" title="Safe Zones TikTok (S)">SAFE</button>
           <button id="btnOpenTelemetry" class="glass-soft util-btn util-icon" title="Telemetría (I)">📊</button>
+          <button id="btnOpenLeague" class="glass-soft util-btn util-icon" title="Liga (L)">🏆</button>
           <button id="btnQuickMute" class="glass-soft util-btn util-icon" title="Audio ON/OFF">🔊</button>
           <button id="btnOpenPanel" class="glass-soft util-btn util-icon" title="Ajustes (H)">⚙️</button>
         </div>
       </div>
 
-      <!-- NOTIFICATION DOCK ÚNICO (Bioma, Regalos, Frenesí, EMP, Hack, Pánico) -->
+      <!-- NOTIFICATION DOCK ÚNICO -->
       <div id="notificationDock" class="hidden" role="status" aria-live="polite" aria-atomic="true">
         <div id="notificationVisual" class="notification-visual">
           <img id="notificationAvatar" class="hidden" src="" alt="" />
@@ -67,7 +68,7 @@
         <div id="notificationProgress" class="notification-progress"></div>
       </div>
 
-      <!-- GUÍA SAFE ZONES TIKTOK (TECLA S) -->
+      <!-- GUÍA SAFE ZONES TIKTOK -->
       <div id="safeZoneGuide" class="hidden">
         <div class="sz-band" style="top:0;left:0;right:0;height:10%;border-bottom:1px dashed;">CONTROLES SUPERIORES · 10%</div>
         <div class="sz-band" style="bottom:0;left:0;right:0;height:14%;border-top:1px dashed;">CHAT Y REGALOS · 14%</div>
@@ -76,10 +77,9 @@
         <div style="position:absolute;top:10%;bottom:14%;left:3%;right:12%;border:1px solid rgba(52,211,153,0.85);border-radius:8px;"></div>
       </div>
 
-      <!-- ZONA SEGURA DE TIKTOK LIVE (FULL-BLEED) -->
+      <!-- ZONA SEGURA DE TIKTOK LIVE -->
       <div id="safeZoneHUD">
 
-        <!-- 1. CABECERA SEGURA -->
         <div style="display:flex;flex-direction:column;gap:4px;width:100%;">
           <div id="onboardingTicker" class="glass-soft">1. Escribe MX o AR en chat para elegir bando</div>
 
@@ -137,10 +137,8 @@
           </div>
         </div>
 
-        <!-- 2. ZONA CENTRAL 100% DESPEJADA -->
         <div id="centerArenaHUD"></div>
 
-        <!-- 3. PIE SEGURO (BASE SUR + BARRA DE FRENESÍ HORIZONTAL + LEYENDA DE REGALOS) -->
         <div style="display:flex;flex-direction:column;gap:4px;width:100%;">
           <div id="cardBaseB" class="glass base-card">
             <div class="base-header">
@@ -175,7 +173,6 @@
             </div>
           </div>
 
-          <!-- Barra Horizontal Compacta de Frenesí x2 -->
           <div id="frenzyStrip" class="glass-soft">
             <span class="frenzy-strip-label">⚡ FRENESÍ</span>
             <div class="frenzy-h-track">
@@ -191,9 +188,9 @@
           </div>
         </div>
 
-      </div> <!-- Fin #safeZoneHUD -->
+      </div>
 
-      <!-- CINEMÁTICA ÉPICA DE VICTORIA · 10 SEGUNDOS -->
+      <!-- CINEMÁTICA ÉPICA DE VICTORIA -->
       <div id="victoryOverlay" class="hidden" aria-live="polite">
         <div class="vic-rays"></div>
         <div class="vic-spark vic-spark-a">✦</div>
@@ -224,12 +221,12 @@
         </div>
       </div>
 
-      <!-- PANEL DE AJUSTES (TECLA H O ⚙️) -->
+      <!-- PANEL DE AJUSTES -->
       <div id="controlPanel" class="modal-overlay hidden">
         <div class="modal-header">
           <div>
             <div style="font-size:13px;font-weight:900;letter-spacing:0.05em;">TACTICAL ARENA V2.3</div>
-            <div style="font-size:9px;color:#94A3B8;margin-top:2px;">Elixir, Biomas &amp; Audio Épico · H: Ajustes · I: Telemetría · S: Safe · T/Y: Tap</div>
+            <div style="font-size:9px;color:#94A3B8;margin-top:2px;">Elixir, Biomas &amp; Audio Épico · H: Ajustes · I: Telemetría · L: Liga · S: Safe · T/Y: Tap</div>
           </div>
           <button id="btnClosePanel" class="btn">Cerrar ✕</button>
         </div>
@@ -372,7 +369,7 @@
         </div>
       </div>
 
-      <!-- MODAL DE TELEMETRÍA (TECLA I O 📊) -->
+      <!-- MODAL DE TELEMETRÍA -->
       <div id="telemetryModal" class="modal-overlay hidden">
         <div class="modal-header">
           <div>
@@ -411,9 +408,33 @@
         </div>
       </div>
 
-    </div> <!-- Fin #hud -->
-  </div> <!-- Fin #stage -->
-  </div> <!-- Fin #stageFrame -->
+      <!-- MODAL DE LIGA (FASE A) -->
+      <div id="leagueModal" class="modal-overlay hidden">
+        <div class="modal-header">
+          <div>
+            <div style="font-size:13px;font-weight:900;letter-spacing:0.05em;">🏆 LIGA TACTICAL</div>
+            <div style="font-size:9px;color:#94A3B8;margin-top:2px;">
+              Temporada <strong id="leagueSeasonNum" class="tabular" style="color:#FBBF24;">01</strong> ·
+              <span id="leagueSeasonDays" class="tabular">28</span> días ·
+              <span id="leagueRoundsCount" class="tabular">0</span> rondas
+            </div>
+          </div>
+          <button id="btnCloseLeague" class="btn">Cerrar ✕</button>
+        </div>
+
+        <div class="league-tabs">
+          <button class="league-tab active" data-league-tab="standings">📊 Posiciones</button>
+          <button class="league-tab" data-league-tab="mvps">👑 MVPs</button>
+          <button class="league-tab" data-league-tab="gifters">💰 Gifters</button>
+          <button class="league-tab" data-league-tab="history">📜 Historial</button>
+        </div>
+
+        <div id="leagueContent"></div>
+      </div>
+
+    </div>
+  </div>
+  </div>
 
   <script type="module" src="/src/main.ts"></script>
 </body>

@@ -39,7 +39,6 @@ html, body {
 .tabular { font-variant-numeric: tabular-nums; }
 .hidden { display: none !important; }
 
-/* MARCO 9:16 FULL-BLEED */
 #stageFrame {
   position: relative;
   width: 100vw;
@@ -80,7 +79,6 @@ html, body {
   display: block;
 }
 
-/* VIÑETAS DE URGENCIA */
 @keyframes suddenDeathPulse {
   0%, 100% { box-shadow: inset 0 0 38px rgba(239, 68, 68, 0.30); }
   50% { box-shadow: inset 0 0 96px rgba(239, 68, 68, 0.82); }
@@ -97,7 +95,6 @@ html, body {
 #suddenDeathVignette { z-index: 4; }
 #suddenDeathVignette.active { opacity: 1; animation: suddenDeathPulse 0.85s ease-in-out infinite; }
 
-/* WHALE TAKEOVER */
 @keyframes takeoverIn {
   0% { opacity: 0; transform: scale(0.86); }
   18% { opacity: 1; transform: scale(1.02); }
@@ -128,7 +125,6 @@ html, body {
   animation: takeoverIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* HUD */
 #hud {
   position: absolute;
   inset: 0;
@@ -150,7 +146,6 @@ html, body {
   border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
-/* BARRA SUPERIOR (En zona de controles superiores 10% para OBS/Streamer) */
 #topUtilBar {
   position: absolute;
   top: 6px;
@@ -206,7 +201,6 @@ html, body {
   animation: obsPulse 1.4s ease-in-out infinite;
 }
 
-/* NOTIFICATION DOCK ÚNICO (Superpuesto sobre #onboardingTicker en top: 10.4%) */
 #notificationDock {
   position: absolute;
   top: 10.4%;
@@ -248,7 +242,6 @@ html, body {
 }
 @keyframes dockDrain { to { transform: scaleX(0); } }
 
-/* SAFE ZONES TIKTOK */
 #safeZoneGuide { position: absolute; inset: 0; z-index: 25; pointer-events: none; }
 .sz-band {
   position: absolute;
@@ -259,7 +252,6 @@ html, body {
   text-transform: uppercase; color: #FECACA; text-align: center;
 }
 
-/* ZONA SEGURA MAXIMIZADA */
 #safeZoneHUD {
   position: absolute;
   top: 10.4%;
@@ -317,7 +309,6 @@ html, body {
   background: rgba(255, 255, 255, 0.06); border-radius: 7px; padding: 2px 3px; overflow: hidden;
 }
 
-/* TARJETAS DE BASE + BARRA DE ELIXIR (Compactadas para maximizar arena) */
 .base-card { border-radius: 10px; padding: 3px 8px; transition: border-color 0.25s, box-shadow 0.25s; }
 .base-card.panic { border-color: rgba(239, 68, 68, 0.92); box-shadow: 0 0 18px rgba(239, 68, 68, 0.44); }
 .base-card.emp-hit { border-color: rgba(34, 211, 238, 0.95); box-shadow: 0 0 18px rgba(34, 211, 238, 0.45); }
@@ -354,13 +345,11 @@ html, body {
   background: rgba(251, 191, 36, 0.2); border: 1px solid rgba(251, 191, 36, 0.45); color: #FDE68A;
 }
 
-/* ZONA CENTRAL 100% LIBRE */
 #centerArenaHUD {
   flex: 1;
   pointer-events: none;
 }
 
-/* BARRA HORIZONTAL COMPACTA DE FRENESÍ */
 #frenzyStrip {
   display: flex;
   align-items: center;
@@ -411,7 +400,6 @@ html, body {
   white-space: nowrap;
 }
 
-/* LEYENDA DE REGALOS ULTRACOMPACTA */
 #giftLegendBox { border-radius: 10px; padding: 3px; }
 .gift-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2.5px; }
 .gift-cell {
@@ -430,14 +418,12 @@ html, body {
 .gift-sub { display: none; }
 .coin-badge { grid-column: 2; grid-row: 2; margin: 0; font-size: 5.8px; font-weight: 800; color: #FDE047; white-space: nowrap; }
 
-/* BANDERAS SVG */
 .team-flag-svg { display: block; overflow: hidden; border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.75); }
 .team-flag-hero { width: 100%; height: 100%; border-width: 2px; border-radius: 8px; }
 .team-flag-inline { display: inline-block; width: 16px; height: 11px; vertical-align: -1px; }
 .team-flag-fallback.team-flag-hero { font-size: 62px; line-height: 1; }
 .team-flag-fallback.team-flag-inline { font-size: 13px; line-height: 1; }
 
-/* CINEMÁTICA DE VICTORIA · 10 SEGUNDOS */
 #victoryOverlay {
   position: absolute; inset: 0; z-index: 42;
   display: flex; align-items: center; justify-content: center; overflow: hidden;
@@ -479,7 +465,6 @@ html, body {
 @keyframes vicSpin { to { transform: rotate(360deg); } }
 @keyframes vicDrain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 
-/* MODALES (AJUSTES Y TELEMETRÍA) */
 .modal-overlay {
   position: absolute; inset: 0; z-index: 45;
   background: rgba(6, 9, 17, 0.97);
@@ -529,6 +514,120 @@ html, body {
 .kpi-box { background: rgba(0,0,0,0.38); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px; }
 .kpi-label { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #94A3B8; }
 .kpi-val { font-size: 14px; font-weight: 800; color: #F8FAFC; margin-top: 2px; }
+
+/* ========================= LIGA (Fase A) ========================= */
+.league-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.league-tab {
+  flex: 1;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #94A3B8;
+  border-radius: 9px;
+  padding: 6px 4px;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.league-tab.active {
+  background: rgba(251, 191, 36, 0.18);
+  border-color: rgba(251, 191, 36, 0.5);
+  color: #FDE68A;
+}
+.league-tab:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.league-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 4px;
+}
+.league-row.podium-1 { border-color: rgba(251, 191, 36, 0.55); background: rgba(251, 191, 36, 0.08); }
+.league-row.podium-2 { border-color: rgba(203, 213, 225, 0.4); background: rgba(203, 213, 225, 0.04); }
+.league-row.podium-3 { border-color: rgba(217, 119, 6, 0.4); background: rgba(217, 119, 6, 0.05); }
+
+.league-pos {
+  width: 24px; text-align: center; font-weight: 900; font-size: 11px; flex-shrink: 0; color: #94A3B8;
+}
+.league-row.podium-1 .league-pos { color: #FBBF24; }
+.league-row.podium-2 .league-pos { color: #CBD5E1; }
+.league-row.podium-3 .league-pos { color: #D97706; }
+.league-flag { font-size: 14px; line-height: 1; flex-shrink: 0; }
+.league-name {
+  flex: 1; min-width: 0;
+  font-size: 10.5px; font-weight: 800;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.league-meta {
+  font-size: 9px; color: #94A3B8; font-weight: 700;
+  text-align: right; flex-shrink: 0; white-space: nowrap;
+}
+.league-pts {
+  font-size: 12px; font-weight: 900; color: #FDE68A;
+  min-width: 34px; text-align: right; flex-shrink: 0;
+}
+.league-avatar {
+  width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+}
+.league-empty {
+  text-align: center; padding: 20px 10px;
+  color: #64748B; font-size: 10px; font-style: italic;
+}
+.league-subhead {
+  font-size: 9px; font-weight: 800; color: #94A3B8; text-transform: uppercase;
+  letter-spacing: 0.1em; margin: 10px 0 6px 2px;
+}
+
+.league-period-sel {
+  display: flex; gap: 4px; margin-bottom: 8px;
+}
+.league-period-sel button {
+  flex: 1; background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94A3B8; border-radius: 8px; padding: 4px; font-size: 9.5px; font-weight: 700;
+  cursor: pointer; transition: all 0.15s;
+}
+.league-period-sel button.active {
+  background: rgba(52, 211, 153, 0.18); border-color: rgba(52, 211, 153, 0.5); color: #6EE7B7;
+}
+
+.league-history-item {
+  padding: 7px 9px; border-radius: 9px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 5px;
+  font-size: 9.5px; line-height: 1.35;
+}
+.league-history-item.featured {
+  border-color: rgba(251, 191, 36, 0.4);
+  background: rgba(251, 191, 36, 0.06);
+}
+.league-history-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.league-history-winner { color: #34D399; font-weight: 800; }
+.league-history-loser { color: #94A3B8; }
+.league-history-meta {
+  color: #64748B; font-size: 8.5px; margin-top: 3px;
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+.league-record-badge {
+  display: inline-block; padding: 1px 5px; border-radius: 5px;
+  background: rgba(239, 68, 68, 0.18); color: #FCA5A5;
+  font-size: 8px; font-weight: 800; margin-left: 4px;
+}
 
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }

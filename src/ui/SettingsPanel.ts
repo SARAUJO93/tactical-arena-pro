@@ -1,11 +1,13 @@
 import { TeamId } from '../core/EventBus';
 import {
   LIGAMX_ROSTER, makeBaseState, savePersistentState, state, TeamPreset, WORLD_ROSTER,
+  getStandings, getTopPlayers, getTopGifters, getRecentRounds,
 } from '../core/GameState';
 import { SynthEngine } from '../audio/SynthEngine';
 import { TikFinityClient } from '../network/TikFinityClient';
 import { downloadFile, renderTelemetry } from '../systems/Telemetry';
 import { escapeHtml, hexToRgba } from '../utils/helpers';
+import { getAvatar } from '../systems/AvatarCache';
 
 export interface SettingsPanelDeps {
   synth: SynthEngine;
@@ -21,6 +23,9 @@ export interface SettingsPanelDeps {
 }
 
 const $ = (id: string) => document.getElementById(id)!;
+
+type LeagueTab = 'standings' | 'mvps' | 'gifters' | 'history';
+type GifterPeriod = 'today' | 'season' | 'lifetime';
 
 function compressImageFile(file: File, cb: (dataUrl: string) => void): void {
   const reader = new FileReader();
@@ -38,7 +43,29 @@ function compressImageFile(file: File, cb: (dataUrl: string) => void): void {
   reader.readAsDataURL(file);
 }
 
+function fmtCoins(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+
+function fmtDuration(sec: number): string {
+  if (sec < 60) return `${sec}s`;
+  return `${Math.floor(sec / 60)}m ${sec % 60}s`;
+}
+
+function fmtAgo(ts: number): string {
+  const diff = Math.floor((Date.now() - ts) / 1000);
+  if (diff < 60) return `${diff}s`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return `${Math.floor(diff / 86400)}d`;
+}
+
 export class SettingsPanel {
+  private leagueTab: LeagueTab = 'standings';
+  private gifterPeriod: GifterPeriod = 'season';
+
   constructor(private deps: SettingsPanelDeps) {
     this.bindEvents();
     this.renderRosterChips();
@@ -50,6 +77,7 @@ export class SettingsPanel {
     state.panelOpen = !state.panelOpen;
     state.telemetryOpen = false;
     $('telemetryModal').classList.add('hidden');
+    $('leagueModal')?.classList.add('hidden');
     $('controlPanel').classList.toggle('hidden', !state.panelOpen);
   }
 
@@ -57,8 +85,25 @@ export class SettingsPanel {
     state.telemetryOpen = !state.telemetryOpen;
     state.panelOpen = false;
     $('controlPanel').classList.add('hidden');
+    $('leagueModal')?.classList.add('hidden');
     $('telemetryModal').classList.toggle('hidden', !state.telemetryOpen);
     if (state.telemetryOpen) renderTelemetry();
+  }
+
+  toggleLeague(): void {
+    const modal = $('leagueModal');
+    if (!modal) return;
+    const wasHidden = modal.classList.contains('hidden');
+    state.panelOpen = false;
+    state.telemetryOpen = false;
+    $('controlPanel').classList.add('hidden');
+    $('telemetryModal').classList.add('hidden');
+    if (wasHidden) {
+      modal.classList.remove('hidden');
+      this.renderLeague(this.leagueTab);
+    } else {
+      modal.classList.add('hidden');
+    }
   }
 
   toggleSafeZones(): void {
@@ -84,14 +129,12 @@ export class SettingsPanel {
     $('btnAiToggle').textContent = state.aiDirectorEnabled ? '🤖 Director IA: ON' : '🤖 Director IA: OFF';
     $('btnTournamentToggle').textContent = state.tournamentMode ? 'Torneo: ON' : 'Torneo: OFF';
 
-    // Música
     ($('selMusicMode') as HTMLSelectElement).value = state.musicMode;
     const volPct = Math.round(state.musicVolume * 100);
     ($('sliderMusicVol') as HTMLInputElement).value = String(volPct);
     $('lblMusicVol').textContent = `${volPct}%`;
     this.deps.synth.syncVolume();
 
-    // Tap Tap
     ($('sliderPersonalTap') as HTMLInputElement).value = String(state.personalTapThreshold);
     $('lblPersonalTap').textContent = `${state.personalTapThreshold} ❤️`;
     ($('sliderFrenzyGoal') as HTMLInputElement).value = String(state.frenzyGoalLikes);
@@ -175,6 +218,230 @@ export class SettingsPanel {
     });
   }
 
+  /* ===================== LIGA (Fase A) ===================== */
+
+  private renderLeague(tab: LeagueTab): void {
+    const season = state.currentSeason;
+    const daysRemaining = Math.max(0, Math.ceil((season.endDate - Date.now()) / 86_400_000));
+    const totalRounds = season.standings.reduce((s, e) => s + e.wins, 0);
+
+    const elSeason = $('leagueSeasonNum');
+    const elDays = $('leagueSeasonDays');
+    const elRounds = $('leagueRoundsCount');
+    if (elSeason) elSeason.textContent = String(season.index).padStart(2, '0');
+    if (elDays) elDays.textContent = String(daysRemaining);
+    if (elRounds) elRounds.textContent = String(totalRounds);
+
+    const content = $('leagueContent');
+    if (!content) return;
+
+    if (tab === 'standings') content.innerHTML = this.renderStandingsTab();
+    else if (tab === 'mvps') content.innerHTML = this.renderMvpsTab();
+    else if (tab === 'gifters') content.innerHTML = this.renderGiftersTab();
+    else content.innerHTML = this.renderHistoryTab();
+
+    if (tab === 'gifters') {
+      content.querySelectorAll<HTMLButtonElement>('[data-gifter-period]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          this.gifterPeriod = (btn.dataset.gifterPeriod as GifterPeriod) || 'season';
+          this.renderLeague('gifters');
+        });
+      });
+    }
+  }
+
+  private renderStandingsTab(): string {
+    const standings = getStandings();
+    const tAKey = state.teamA.key;
+    const tBKey = state.teamB.key;
+
+    const rows = standings.map((s, idx) => {
+      const podium = idx < 3 ? ` podium-${idx + 1}` : '';
+      const isCurrent = s.key === tAKey || s.key === tBKey;
+      const highlight = isCurrent ? ` style="border-color:${s.color};box-shadow:0 0 8px ${hexToRgba(s.color, 0.28)};"` : '';
+      const streakRec = state.teamRecords[s.key];
+      const streakBadge = streakRec && streakRec.streak >= 2
+        ? `<span style="font-size:8.5px;color:#FB923C;font-weight:800;">🔥${streakRec.streak}</span>`
+        : '';
+      return `
+        <div class="league-row${podium}"${highlight}>
+          <div class="league-pos">${idx + 1}</div>
+          <div class="league-flag">${escapeHtml(s.flag)}</div>
+          <div class="league-name" style="color:${s.color};">${escapeHtml(s.name)}${streakBadge ? ' ' + streakBadge : ''}</div>
+          <div class="league-meta">${s.wins}W-${s.losses}L</div>
+          <div class="league-pts tabular">${s.points}</div>
+        </div>`;
+    }).join('');
+
+    const records = state.globalRecords;
+    const recItem = (label: string, val: string, icon: string, color: string) =>
+      `<div style="display:flex;align-items:center;gap:6px;padding:5px 7px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);margin-bottom:3px;font-size:9.5px;">
+        <span style="font-size:12px;">${icon}</span>
+        <span style="flex:1;color:#CBD5E1;font-weight:700;">${label}</span>
+        <span class="tabular" style="color:${color};font-weight:800;">${val}</span>
+      </div>`;
+
+    const recordsBlock = `
+      <div class="league-subhead">🏅 Récords Globales</div>
+      ${records.biggestSingleRound
+        ? recItem('Ronda con más coins', `${fmtCoins(records.biggestSingleRound.coins)} 🪙`, '💰', '#FDE047')
+        : ''}
+      ${records.fastestRound
+        ? recItem('Ronda más rápida', fmtDuration(records.fastestRound.durationSec), '⚡', '#34D399')
+        : ''}
+      ${records.longestRound
+        ? recItem('Ronda más larga', fmtDuration(records.longestRound.durationSec), '🕰️', '#38BDF8')
+        : ''}
+      ${records.biggestUpset
+        ? recItem('Mayor upset (ELO)', `+${records.biggestUpset.eloDiff} pts`, '🎯', '#F472B6')
+        : ''}`;
+
+    if (!rows) return `<div class="league-empty">Sin partidos jugados en esta temporada.</div>`;
+
+    return `
+      <div class="league-subhead">Tabla de la Temporada ${String(state.currentSeason.index).padStart(2, '0')}</div>
+      ${rows}
+      ${recordsBlock}
+    `;
+  }
+
+  private renderMvpsTab(): string {
+    const sessionTop = Object.values(state.sessionMVP)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+
+    const historical = getTopPlayers(20);
+
+    const renderRow = (
+      pos: number,
+      avatarUrl: string,
+      user: string,
+      color: string,
+      score: number,
+      meta: string
+    ) => {
+      const av = getAvatar(avatarUrl, user);
+      const podium = pos < 3 ? ` podium-${pos + 1}` : '';
+      return `
+        <div class="league-row${podium}">
+          <div class="league-pos">${pos + 1}</div>
+          <img class="league-avatar" src="${av.dataUrl}" alt="" />
+          <div class="league-name">${escapeHtml(user)}</div>
+          <div class="league-meta">${meta}</div>
+          <div class="league-pts tabular" style="color:${color};">${score >= 1000 ? `${(score / 1000).toFixed(1)}k` : score}</div>
+        </div>`;
+    };
+
+    const sessionBlock = sessionTop.length
+      ? sessionTop.map((m, i) => {
+          const teamColor = m.team === 'A' ? state.teamA.color : state.teamB.color;
+          const teamName = m.team === 'A' ? state.teamA.key : state.teamB.key;
+          return renderRow(i, m.avatarUrl, m.user, teamColor, m.score, teamName);
+        }).join('')
+      : `<div class="league-empty">Aún sin MVPs en esta sesión.</div>`;
+
+    const lifetimeBlock = historical.length
+      ? historical.map((p, i) => {
+          const color = p.favoriteTeam === 'A' ? state.teamA.color : p.favoriteTeam === 'B' ? state.teamB.color : '#FBBF24';
+          const meta = `${p.mvpRounds}🏅 · ${fmtCoins(p.lifetime.coins)}🪙`;
+          return renderRow(i, p.avatarUrl, p.user, color, p.peaks.maxSessionScore, meta);
+        }).join('')
+      : `<div class="league-empty">Sin históricos todavía. La próxima ronda abrirá el registro.</div>`;
+
+    return `
+      <div class="league-subhead">👑 MVPs de la Sesión (Live)</div>
+      ${sessionBlock}
+      <div class="league-subhead" style="margin-top:12px;">🏆 Top Histórico (Peak Score)</div>
+      ${lifetimeBlock}
+    `;
+  }
+
+  private renderGiftersTab(): string {
+    const sel = (p: GifterPeriod, label: string) => {
+      const active = this.gifterPeriod === p ? ' active' : '';
+      return `<button data-gifter-period="${p}" class="${active.trim()}">${label}</button>`;
+    };
+
+    const gifters = getTopGifters(this.gifterPeriod, 10);
+
+    const rows = gifters.length
+      ? gifters.map((g, i) => {
+          const av = getAvatar(g.avatarUrl, g.user);
+          const podium = i < 3 ? ` podium-${i + 1}` : '';
+          const player = state.playerRecords[g.user];
+          const meta = player
+            ? `${player.lifetime.gifts}g · ${player.mvpRounds}🏅`
+            : '';
+          return `
+            <div class="league-row${podium}">
+              <div class="league-pos">${i + 1}</div>
+              <img class="league-avatar" src="${av.dataUrl}" alt="" />
+              <div class="league-name">${escapeHtml(g.user)}</div>
+              <div class="league-meta">${meta}</div>
+              <div class="league-pts tabular" style="color:#FDE047;">${fmtCoins(g.coins)}🪙</div>
+            </div>`;
+        }).join('')
+      : `<div class="league-empty">Aún sin gifters registrados en este periodo.</div>`;
+
+    return `
+      <div class="league-subhead">💰 Top Gifters</div>
+      <div class="league-period-sel">
+        ${sel('today', 'Hoy')}
+        ${sel('season', 'Temporada')}
+        ${sel('lifetime', 'Histórico')}
+      </div>
+      ${rows}
+    `;
+  }
+
+  private renderHistoryTab(): string {
+    const rounds = getRecentRounds(20);
+
+    if (!rounds.length) {
+      return `<div class="league-empty">Aún no hay rondas cerradas. Juega la primera batalla para ver el historial.</div>`;
+    }
+
+    const items = rounds.map((r) => {
+      const featured = r.featured ? ' featured' : '';
+      const suddenTag = r.suddenDeath
+        ? `<span class="league-record-badge" style="background:rgba(239,68,68,0.2);color:#FCA5A5;">💀 Súbita</span>`
+        : '';
+      const featTag = r.featured
+        ? `<span class="league-record-badge" style="background:rgba(251,191,36,0.18);color:#FDE68A;">⭐ Featured</span>`
+        : '';
+      const mvpLine = r.mvp
+        ? `<span style="color:#FDE68A;">👑 ${escapeHtml(r.mvp.user)} · ${r.mvp.score.toLocaleString()}</span>`
+        : `<span style="color:#64748B;">— sin MVP</span>`;
+      const gifterLine = r.topGifter
+        ? `<span style="color:#FDE047;">💰 ${escapeHtml(r.topGifter.user)} · ${fmtCoins(r.topGifter.coins)}</span>`
+        : '';
+      return `
+        <div class="league-history-item${featured}">
+          <div class="league-history-line">
+            <span class="league-history-winner">${escapeHtml(r.winnerName)}</span>
+            <span style="color:#475569;font-size:8px;">def.</span>
+            <span class="league-history-loser">${escapeHtml(r.loserName)}</span>
+            ${featTag}${suddenTag}
+            <span style="margin-left:auto;color:#64748B;font-size:8px;">${fmtAgo(r.ts)}</span>
+          </div>
+          <div class="league-history-meta">
+            <span>⏱️ ${fmtDuration(r.durationSec)}</span>
+            <span>🪙 ${fmtCoins(r.totalCoins)}</span>
+            <span>❤️ ${r.totalTaps}</span>
+            ${mvpLine}
+            ${gifterLine}
+          </div>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="league-subhead">📜 Últimas 20 Rondas</div>
+      ${items}
+    `;
+  }
+
+  /* ===================== ROSTER / GIFTS ===================== */
+
   private applyRosterPreset(list: TeamPreset[]): void {
     state.roster = structuredClone(list);
     state.rosterCursor = 2;
@@ -195,7 +462,21 @@ export class SettingsPanel {
     $('wsPillTop').addEventListener('click', () => this.togglePanel());
     $('btnOpenTelemetry').addEventListener('click', () => this.toggleTelemetry());
     $('btnCloseTelemetry').addEventListener('click', () => this.toggleTelemetry());
+    $('btnOpenLeague')?.addEventListener('click', () => this.toggleLeague());
+    $('btnCloseLeague')?.addEventListener('click', () => this.toggleLeague());
     $('obsAudioUnlock').addEventListener('click', () => synth.unlock());
+
+    // Tabs de la Liga (solo UI, el shortcut de teclado vive en InputShortcuts)
+    document.querySelectorAll<HTMLButtonElement>('.league-tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.leagueTab as LeagueTab | undefined;
+        if (!tab) return;
+        document.querySelectorAll('.league-tab').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.leagueTab = tab;
+        this.renderLeague(tab);
+      });
+    });
 
     // Controles generales
     $('btnQuickDemo').addEventListener('click', () => this.toggleDemoMode());
@@ -341,6 +622,12 @@ export class SettingsPanel {
       const payload = {
         ...state.telemetry,
         topMVP: Object.values(state.sessionMVP).sort((a, b) => b.score - a.score).slice(0, 10),
+        league: {
+          season: state.currentSeason,
+          teamRecords: state.teamRecords,
+          globalRecords: state.globalRecords,
+          recentRounds: state.roundLogs.slice(0, 50),
+        },
       };
       downloadFile(`tactical_v2_3_telemetry_${Date.now()}.json`, JSON.stringify(payload, null, 2), 'application/json');
     });

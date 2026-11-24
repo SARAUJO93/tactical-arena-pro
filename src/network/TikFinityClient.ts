@@ -2,6 +2,21 @@ import { bus } from '../core/EventBus';
 import { computeTikFinityDelta, routeGiftV2 } from '../systems/GiftMapper';
 import { logWsEvent } from '../systems/Telemetry';
 
+const MAX_REPEATS = 1000;
+const MAX_COINS = 1000000;
+
+function finiteInteger(value: unknown, fallback: number, min: number, max: number): number {
+  const n = typeof value === 'number' || typeof value === 'string' ? Number(value) : NaN;
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(n)));
+}
+
+function safeText(value: unknown, fallback: string, maxLength = 64): string {
+  if (typeof value !== 'string') return fallback;
+  const text = value.trim();
+  return text ? text.slice(0, maxLength) : fallback;
+}
+
 export class TikFinityClient {
   private ws: WebSocket | null = null;
   private userEnabled = false;
@@ -71,30 +86,36 @@ export class TikFinityClient {
       if (msg.team && msg.tier) {
         bus.emit('game:gift', {
           team: String(msg.team).toUpperCase() === 'B' ? 'B' : 'A',
-          tier: Math.max(1, Math.min(7, Number(msg.tier))),
-          delta: msg.count || 1,
-          user: msg.user || 'TikTok',
-          giftName: msg.gift || 'Regalo',
-          avatarUrl: msg.avatar || '',
-          coins: msg.coins || 1,
+          tier: finiteInteger(msg.tier, 1, 1, 7),
+          delta: finiteInteger(msg.count, 1, 1, MAX_REPEATS),
+          user: safeText(msg.user, 'TikTok', 64),
+          giftName: safeText(msg.gift, 'Regalo', 64),
+          avatarUrl: safeText(msg.avatar, '', 300),
+          coins: finiteInteger(msg.coins, 1, 1, MAX_COINS),
           isDemo: false,
         });
         return;
       }
 
       const d = msg.data || {};
-      const user = d.uniqueId || d.nickname || 'Viewer';
-      const avatarUrl = d.profilePictureUrl || '';
+      const user = safeText(d.uniqueId || d.nickname, 'Viewer', 64);
+      const avatarUrl = safeText(d.profilePictureUrl, '', 300);
 
       if (msg.event === 'chat') bus.emit('game:chat', { user, comment: d.comment || '', avatarUrl });
-      else if (msg.event === 'like') bus.emit('game:tap', { user, count: Number(d.likeCount || 1), avatarUrl, isDemo: false });
+      else if (msg.event === 'like') bus.emit('game:tap', {
+        user,
+        count: finiteInteger(d.likeCount, 1, 1, MAX_REPEATS),
+        avatarUrl,
+        isDemo: false,
+      });
       else if (msg.event === 'follow') bus.emit('game:follow', { user, avatarUrl, isDemo: false });
       else if (msg.event === 'share') bus.emit('game:share', { user, avatarUrl, isDemo: false });
       else if (msg.event === 'gift') {
-        const delta = computeTikFinityDelta(d.userId || user, d.giftId || d.giftName, d.msgId, d.repeatCount, d.repeatEnd);
+        const repeatCount = finiteInteger(d.repeatCount, 1, 1, MAX_REPEATS);
+        const delta = computeTikFinityDelta(d.userId || user, d.giftId || d.giftName, d.msgId, repeatCount, d.repeatEnd);
         if (delta <= 0) return;
-        const gName = d.giftName || 'Regalo';
-        const coins = Number(d.diamondCount || 1);
+        const gName = safeText(d.giftName, 'Regalo', 64);
+        const coins = finiteInteger(d.diamondCount, 1, 1, MAX_COINS);
         const routed = routeGiftV2(d.giftId, gName, coins, user);
         bus.emit('game:gift', {
           team: routed.team,

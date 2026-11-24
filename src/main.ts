@@ -1,8 +1,11 @@
 import './style.css';
 import { bus, TeamId } from './core/EventBus';
 import {
-  loadPersistentState, makeSideDefenseState, MAX_BASE_HP, METEOR_COIN_STEP,
+  loadPersistentState, makeSideDefenseState, MAX_BASE_HP,
   saveNow, savePersistentState, state, TeamPreset,
+  // Fase A
+  beginRound, finalizeRound, resetIfNeeded, resetSession as resetSessionState,
+  scoreMvp, ensurePlayerRecord,
 } from './core/GameState';
 import { ElixirSystem } from './systems/ElixirSystem';
 import { SynthEngine } from './audio/SynthEngine';
@@ -16,8 +19,10 @@ import { SettingsPanel } from './ui/SettingsPanel';
 import { initInputShortcuts } from './ui/InputShortcuts';
 import { cycleNextBiome, getActiveBiome, getBiomeProgressText } from './config/biomes';
 import { renderTeamFlagHtml } from './ui/FlagRenderer';
+import { NotificationDock } from './ui/NotificationDock';
 
 const $ = (id: string) => document.getElementById(id)!;
+const notificationDock = new NotificationDock($);
 const synth = new SynthEngine();
 const elixir = new ElixirSystem();
 const tikfinity = new TikFinityClient();
@@ -34,7 +39,7 @@ const sim = new Simulation(
 );
 
 // =========================================================================
-// HUD DE COMBATE, ELIXIR (CON DEDUPLICACIÓN DOM) Y NOTIFICATION DOCK ÚNICO
+// HUD DE COMBATE, ELIXIR Y NOTIFICATION DOCK
 // =========================================================================
 const lastElixirHud: Record<TeamId, { valText: string; queueLen: number }> = {
   A: { valText: '', queueLen: -1 },
@@ -112,7 +117,6 @@ function updateOnboardingTicker(): void {
 }
 setInterval(updateOnboardingTicker, 4000);
 
-let dockTimer: ReturnType<typeof setTimeout> | null = null;
 function pushNotificationDock(
   title: string,
   sub: string,
@@ -123,28 +127,7 @@ function pushNotificationDock(
   tag = 'LIVE',
   durationMs = 2600
 ): void {
-  const dock = $('notificationDock');
-  dock.style.setProperty('--notification-accent', color);
-  dock.style.setProperty('--notification-duration', `${durationMs}ms`);
-  $('notificationTitle').textContent = title;
-  $('notificationSub').textContent = sub;
-  $('notificationTag').textContent = tag;
-  const img = $('notificationAvatar') as HTMLImageElement;
-  const gly = $('notificationGlyph');
-  if (user) {
-    img.src = getAvatar(avatarUrl, user).dataUrl;
-    img.classList.remove('hidden');
-    gly.classList.add('hidden');
-  } else {
-    img.classList.add('hidden');
-    gly.textContent = glyph;
-    gly.classList.remove('hidden');
-  }
-  dock.classList.remove('hidden', 'dock-progress-run');
-  void dock.offsetWidth;
-  dock.classList.add('dock-progress-run');
-  if (dockTimer) clearTimeout(dockTimer);
-  dockTimer = setTimeout(() => dock.classList.add('hidden'), durationMs);
+  notificationDock.push(title, sub, color, avatarUrl, user, glyph, tag, durationMs);
 }
 
 function announceActiveBiome(): void {
@@ -185,15 +168,22 @@ function updatePanicAlerts(): void {
   $('cardBaseB').classList.toggle('panic', bLow);
 }
 
+// =========================================================================
+// MVP (FASE A): usa scoreMvp de GameState para no perder peaks históricos
+// =========================================================================
 let top3Timer: ReturnType<typeof setTimeout> | null = null;
+
 function addMVPPoints(user: string, team: TeamId, avatarUrl: string, points: number, isDemo = false): void {
   const clean = user.startsWith('@') ? user : `@${user}`;
-  const buckets = isDemo ? [state.roundMVP] : [state.sessionMVP, state.roundMVP];
-  buckets.forEach((b) => {
-    if (!b[clean]) b[clean] = { user: clean, team, avatarUrl: avatarUrl || '', score: 0 };
-    b[clean].score += points; b[clean].team = team;
-    if (avatarUrl) b[clean].avatarUrl = avatarUrl;
-  });
+  if (isDemo) {
+    const bucket = state.roundMVP;
+    if (!bucket[clean]) bucket[clean] = { user: clean, team, avatarUrl: avatarUrl || '', score: 0 };
+    bucket[clean].score += points;
+    bucket[clean].team = team;
+    if (avatarUrl) bucket[clean].avatarUrl = avatarUrl;
+  } else {
+    scoreMvp(clean, avatarUrl, team, points);
+  }
   if (!top3Timer) top3Timer = setTimeout(() => { top3Timer = null; renderTop3MVP(); }, 400);
   if (!isDemo) savePersistentState();
 }
@@ -233,6 +223,48 @@ function renderGiftLegend(): void {
     <div class="gift-cell emp-cell"><div class="gift-icon-wrap">${icon(sEmp)}</div><div class="gift-title" style="color:#67E8F9;">${escapeHtml(sEmp.display)}</div><div class="gift-sub">EMP -50%⚡</div><div class="coin-badge">🪙${sEmp.coins}</div></div>
     <div class="gift-cell hack-cell"><div class="gift-icon-wrap">${icon(sHack)}</div><div class="gift-title" style="color:#E9D5FF;">${escapeHtml(sHack.display)}</div><div class="gift-sub">Hack x3</div><div class="coin-badge">🪙${sHack.coins}</div></div>
     <div class="gift-cell nuke-cell"><div class="gift-icon-wrap">${icon(sNuke)}</div><div class="gift-title" style="color:#FDE047;">${escapeHtml(sNuke.display)}</div><div class="gift-sub">Nuclear+3⚡</div><div class="coin-badge">🪙${sNuke.coins}</div></div>`;
+}
+
+// =========================================================================
+// FASE A · Helpers de tracking por viewer (sin duplicar telemetría)
+// =========================================================================
+function trackTapForViewer(user: string, avatarUrl: string, team: TeamId | null, count: number): void {
+  if (!user || count <= 0) return;
+  const rec = ensurePlayerRecord(user, avatarUrl);
+  rec.lifetime.taps += count;
+  rec.period.tapsToday += count;
+  rec.period.tapsSeason += count;
+  if (team) {
+    rec.favoriteTeam = rec.favoriteTeam ?? team;
+    rec.teamsSupported[team] = (rec.teamsSupported[team] ?? 0) + count;
+  }
+  state.currentRoundTaps += count;
+}
+
+function trackGiftForViewer(user: string, avatarUrl: string, team: TeamId, count: number, coinsPerUnit: number): void {
+  if (!user || count <= 0) return;
+  const rec = ensurePlayerRecord(user, avatarUrl);
+  const coinDelta = Math.max(0, coinsPerUnit) * count;
+  rec.lifetime.gifts += count;
+  rec.lifetime.coins += coinDelta;
+  rec.period.coinsToday += coinDelta;
+  rec.period.coinsSeason += coinDelta;
+  rec.favoriteTeam = rec.favoriteTeam ?? team;
+  rec.teamsSupported[team] = (rec.teamsSupported[team] ?? 0) + count;
+  state.currentRoundCoins += coinDelta;
+  state.currentRoundGifterCoins[user] = (state.currentRoundGifterCoins[user] ?? 0) + coinDelta;
+}
+
+function trackFollowForViewer(user: string, avatarUrl: string): void {
+  if (!user) return;
+  const rec = ensurePlayerRecord(user, avatarUrl);
+  rec.lifetime.follows += 1;
+}
+
+function trackShareForViewer(user: string, avatarUrl: string): void {
+  if (!user) return;
+  const rec = ensurePlayerRecord(user, avatarUrl);
+  rec.lifetime.shares += 1;
 }
 
 // =========================================================================
@@ -313,12 +345,21 @@ bus.on('action:instant', ({ team, kind, user, avatarUrl, giftName, mult = 1 }) =
 
 bus.on('game:chat', ({ user, comment }) => registerChatAlignment(user, comment));
 
+// =========================================================================
+// TAP · FASE A
+// =========================================================================
 bus.on('game:tap', ({ user, count, avatarUrl, forcedTeam, isDemo = false }) => {
   if (!state.roundActive) return;
-  if (!isDemo) { state.lastRealInteractionAt = Date.now(); state.telemetry.totalTaps += count; }
+  if (!isDemo) state.lastRealInteractionAt = Date.now();
+
   const clean = (user || 'Viewer').startsWith('@') ? user : `@${user || 'Viewer'}`;
-  let team = forcedTeam || state.viewerTeams.get(clean) || null;
+  let team: TeamId | null = forcedTeam || state.viewerTeams.get(clean) || null;
   if (!team && state.unalignedTapSupportsUnderdog) team = state.teamA.hp <= state.teamB.hp ? 'A' : 'B';
+
+  if (!isDemo) {
+    state.telemetry.totalTaps += count;
+    trackTapForViewer(clean, avatarUrl, team, count);
+  }
 
   if (team) {
     let likes = (state.viewerLikes.get(clean) || 0) + count;
@@ -339,11 +380,20 @@ bus.on('game:tap', ({ user, count, avatarUrl, forcedTeam, isDemo = false }) => {
   updateFrenzyGaugeUI();
 });
 
+// =========================================================================
+// FOLLOW · FASE A
+// =========================================================================
 bus.on('game:follow', ({ user, avatarUrl, isDemo = false }) => {
   if (!state.roundActive) return;
-  if (!isDemo) { state.lastRealInteractionAt = Date.now(); state.telemetry.totalFollows++; }
+  if (!isDemo) {
+    state.lastRealInteractionAt = Date.now();
+    state.telemetry.totalFollows++;
+  }
   const clean = user.startsWith('@') ? user : `@${user}`;
   const team = resolveUserTeam(clean);
+
+  if (!isDemo) trackFollowForViewer(clean, avatarUrl);
+
   elixir.addElixir(team, 0.8);
   elixir.enqueueOrder({ team, kind: 'INFANTRY', priority: 2, user: clean, avatarUrl });
   addMVPPoints(clean, team, avatarUrl, 20, isDemo);
@@ -351,23 +401,40 @@ bus.on('game:follow', ({ user, avatarUrl, isDemo = false }) => {
   synth.playSFX('follow');
 });
 
+// =========================================================================
+// SHARE · FASE A
+// =========================================================================
 bus.on('game:share', ({ user, avatarUrl, isDemo = false }) => {
   if (!state.roundActive) return;
-  if (!isDemo) { state.lastRealInteractionAt = Date.now(); state.telemetry.totalShares++; }
+  if (!isDemo) {
+    state.lastRealInteractionAt = Date.now();
+    state.telemetry.totalShares++;
+  }
   const clean = user.startsWith('@') ? user : `@${user}`;
   const team = resolveUserTeam(clean);
+
+  if (!isDemo) trackShareForViewer(clean, avatarUrl);
+
   elixir.addElixir(team, 1.5);
   elixir.enqueueOrder({ team, kind: 'JET', priority: 2, user: clean, avatarUrl });
   addMVPPoints(clean, team, avatarUrl, 50, isDemo);
   showCenterBanner('✈️ ATAQUE POR COMPARTIR', `${clean} → Jet en cola para ${(team === 'A' ? state.teamA : state.teamB).name}`, '#38BDF8', avatarUrl, clean);
 });
 
+// =========================================================================
+// GIFT · FASE A
+// =========================================================================
 bus.on('game:gift', ({ team, tier, delta, user, giftName, avatarUrl, coins, isDemo = false }) => {
   if (!state.roundActive || delta <= 0) return;
-  if (!isDemo) { state.lastRealInteractionAt = Date.now(); recordTelemetryGift(giftName, delta, coins || 1); }
+  if (!isDemo) {
+    state.lastRealInteractionAt = Date.now();
+    recordTelemetryGift(giftName, delta, coins || 1);
+  }
   const clean = user.startsWith('@') ? user : `@${user}`;
   state.viewerTeams.set(clean, team);
   addMVPPoints(clean, team, avatarUrl, Math.max(10, (coins || 1) * 10) * delta, isDemo);
+
+  if (!isDemo) trackGiftForViewer(clean, avatarUrl, team, delta, coins || 1);
 
   const tObj = team === 'A' ? state.teamA : state.teamB;
   showLastCommander(clean, avatarUrl, `${delta > 1 ? `x${delta} ` : ''}${giftName}${state.frenzyActive ? ' ⚡x2' : ''}`, tObj.color);
@@ -400,7 +467,7 @@ bus.on('game:gift', ({ team, tier, delta, user, giftName, avatarUrl, coins, isDe
 });
 
 // =========================================================================
-// RELOJ, FRENESÍ, MUERTE SÚBITA, CINEMÁTICA DE VICTORIA 10s Y RESET
+// FRENESÍ, MUERTE SÚBITA, VICTORIA Y RESET · FASE A
 // =========================================================================
 function activateFrenzy(): void {
   if (!state.roundActive) return;
@@ -427,9 +494,13 @@ let victoryOverlayTimer: ReturnType<typeof setTimeout> | null = null;
 
 function triggerVictory(winner: TeamId): void {
   if (!state.roundActive) return;
-  state.roundActive = false; state.frenzyActive = false; state.suddenDeathActive = false;
+
+  const roundLog = finalizeRound(winner, { suddenDeath: state.suddenDeathActive });
+
+  state.frenzyActive = false; state.suddenDeathActive = false;
   endTakeovers();
-  $('frenzyVignette').classList.remove('active'); $('suddenDeathVignette').classList.remove('active');
+  $('frenzyVignette').classList.remove('active');
+  $('suddenDeathVignette').classList.remove('active');
   $('notificationDock').classList.add('hidden');
 
   const winObj = winner === 'A' ? state.teamA : state.teamB;
@@ -455,7 +526,10 @@ function triggerVictory(winner: TeamId): void {
   synth.speak(`Victoria para ${winObj.name}`);
   setTimeout(() => synth.playSFX('victory'), 420);
 
-  const topRound = Object.values(state.roundMVP).sort((a, b) => b.score - a.score)[0] || { user: '@Comandante', avatarUrl: '', score: 0 };
+  const topRound = roundLog.mvp
+    ? { user: roundLog.mvp.user, avatarUrl: roundLog.mvp.avatarUrl, score: roundLog.mvp.score }
+    : { user: '@Comandante', avatarUrl: '', score: 0 };
+
   $('vicFlag').innerHTML = renderTeamFlagHtml(winObj.key, winObj.flag, 'hero');
   $('vicName').textContent = winObj.name;
   $('vicName').style.color = winObj.color;
@@ -486,7 +560,8 @@ function triggerVictory(winner: TeamId): void {
       if (nextChallenger) {
         Object.assign(winner === 'A' ? state.teamB : state.teamA, nextChallenger, { wins: 0, streak: 0 });
         state.viewerTeams.clear();
-        applyTeamUI(); savePersistentState();
+        applyTeamUI();
+        savePersistentState();
       }
       resetRound();
     }
@@ -497,15 +572,20 @@ function resetRound(): void {
   if (restartTimer) clearInterval(restartTimer);
   if (victoryOverlayTimer) clearTimeout(victoryOverlayTimer);
   endTakeovers();
+
+  cycleNextBiome();
+  beginRound(getActiveBiome().id);
+
   [state.teamA, state.teamB].forEach((t) => {
-    t.hp = MAX_BASE_HP; t.flash = 0; t.shieldHp = 0; t.shieldTimer = 0; t.empTimer = 0; t.panicActive = false;
+    t.flash = 0;
+    t.shieldHp = 0;
+    t.shieldTimer = 0;
+    t.empTimer = 0;
+    t.panicActive = false;
   });
   state.teamA.sideDefenses = [makeSideDefenseState(true), makeSideDefenseState(true)];
   state.teamB.sideDefenses = [makeSideDefenseState(false), makeSideDefenseState(false)];
-
-  state.roundActive = true; state.roundTimeLeft = state.suddenDeathDurationSec;
-  state.suddenDeathActive = false; state.frenzyActive = false; state.frenzyTimeLeft = 0;
-  state.globalTapCount = 0; state.roundMVP = {}; state.meteorRainRemaining = 0;
+  state.meteorRainRemaining = 0;
 
   lastElixirHud.A.valText = ''; lastElixirHud.A.queueLen = -1;
   lastElixirHud.B.valText = ''; lastElixirHud.B.queueLen = -1;
@@ -514,30 +594,27 @@ function resetRound(): void {
 
   sim.clearEntities();
   elixir.resetRound();
-  cycleNextBiome();
 
-  $('suddenDeathVignette').classList.remove('active'); $('frenzyVignette').classList.remove('active');
-  $('victoryOverlay').classList.remove('show'); $('victoryOverlay').classList.add('hidden');
-  applyTeamUI(); updateBaseHUD(); updateFrenzyGaugeUI(); syncTimerPill();
+  $('suddenDeathVignette').classList.remove('active');
+  $('frenzyVignette').classList.remove('active');
+  $('victoryOverlay').classList.remove('show');
+  $('victoryOverlay').classList.add('hidden');
+  applyTeamUI();
+  updateBaseHUD();
+  updateFrenzyGaugeUI();
+  syncTimerPill();
   announceActiveBiome();
 }
 
 function resetSession(): void {
   state.teamA.wins = 0; state.teamA.streak = 0;
   state.teamB.wins = 0; state.teamB.streak = 0;
-  state.sessionMVP = {};
-  state.viewerTeams.clear();
-  state.viewerLikes.clear();
-  state.nextMeteorCoinTarget = METEOR_COIN_STEP;
-  state.telemetry = {
-    sessionStart: Date.now(),
-    totalCoins: 0, totalGifts: 0, totalTaps: 0, totalFollows: 0, totalShares: 0,
-    giftBreakdown: {}, wsLog: [],
-  };
+
+  resetSessionState();
+
   logWsEvent('Sesión y telemetría reiniciadas.');
   renderTop3MVP();
   renderTelemetry();
-  savePersistentState();
   resetRound();
 }
 
@@ -607,6 +684,7 @@ const settings = new SettingsPanel({
 initInputShortcuts({
   togglePanel: () => settings.togglePanel(),
   toggleTelemetry: () => settings.toggleTelemetry(),
+  toggleLeague: () => settings.toggleLeague(),
   toggleSafeZones: () => settings.toggleSafeZones(),
   toggleDemoMode: () => settings.toggleDemoMode(),
   activateSuddenDeath,
@@ -633,7 +711,7 @@ bus.on('tikfinity:status', ({ status, detail }) => {
 });
 
 // =========================================================================
-// TICK DE 1s Y MODO DEMO SINCRONIZADOS CON EL LOOP (ESTABILIDAD 24/7 OBS)
+// TICK DE 1s, RESET DIARIO/TEMPORADA Y DEMO
 // =========================================================================
 const REAL_INTERACTION_GRACE_MS = 12000;
 const DEMO_USERS: { user: string; team: TeamId }[] = [
@@ -642,6 +720,8 @@ const DEMO_USERS: { user: string; team: TeamId }[] = [
 ];
 
 function tickOneSecond(): void {
+  resetIfNeeded();
+
   if (state.telemetryOpen) renderTelemetry();
   if (!state.roundActive) return;
 
@@ -683,7 +763,6 @@ function tickDemoStep(): void {
   else bus.emit('game:gift', { team: v.team, tier: 7, delta: 1, user: v.user, giftName: 'Hack', avatarUrl: '', coins: 99, isDemo: true });
 }
 
-// Game Loop 60 FPS determinista
 let lastTime = performance.now();
 let clockAccumSec = 0;
 let demoAccumSec = 0;
@@ -723,6 +802,7 @@ function loop(now: number): void {
 window.addEventListener('pointerdown', () => synth.unlock(), { passive: true });
 window.addEventListener('beforeunload', saveNow);
 loadPersistentState();
+resetIfNeeded();
 settings.renderRosterChips();
 settings.renderGiftMapperTable();
 applyTeamUI();
@@ -732,5 +812,5 @@ elixir.resetRound();
 synth.init();
 synth.applyMusicMode();
 announceActiveBiome();
-logWsEvent('Tactical Arena V2.3 listo.');
+logWsEvent('Tactical Arena V2.3 listo · Fase A activa (Liga / Records).');
 requestAnimationFrame(loop);

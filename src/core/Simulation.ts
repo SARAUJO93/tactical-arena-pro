@@ -36,7 +36,8 @@ interface Jet {
   veteranRank: number;
   x: number;
   y: number;
-  vy: number;
+  speed: number;
+  angle: number;
   bombsLeft: number;
   bombTimer: number;
   contrailL: Point[];
@@ -215,7 +216,7 @@ export class Simulation {
   getSideTowerPos(team: TeamId, lane: 0 | 1): Point {
     return {
       x: this.getBridgeX(lane),
-      y: team === 'A' ? this.baseAY + 34 : this.baseBY - 34,
+      y: team === 'A' ? this.baseAY + 16 : this.baseBY - 16,
     };
   }
 
@@ -369,14 +370,7 @@ export class Simulation {
       });
       this.synth.playSFX('cannon');
     } else if (order.kind === 'JET') {
-      const enemy: TeamId = isA ? 'B' : 'A';
-      const eBase = enemy === 'A' ? state.teamA : state.teamB;
-      let jetX = this.getBridgeX(lane);
-      if (eBase.sideDefenses[0].hp <= 0 && eBase.sideDefenses[1].hp <= 0) {
-        jetX = this.safeCenterX;
-      } else if (eBase.sideDefenses[lane].hp <= 0) {
-        jetX = this.getBridgeX(lane === 0 ? 1 : 0);
-      }
+      const jetX = this.getBridgeX(lane);
       this.jets.push({
         team: order.team,
         lane,
@@ -385,7 +379,8 @@ export class Simulation {
         veteranRank: order.veteranRank,
         x: jetX,
         y: isA ? this.baseAY - 45 : this.baseBY + 45,
-        vy: isA ? 5.6 : -5.6,
+        speed: 5.6,
+        angle: isA ? Math.PI / 2 : -Math.PI / 2,
         bombsLeft: 3,
         bombTimer: 7,
         contrailL: [],
@@ -787,32 +782,67 @@ export class Simulation {
     }
 
     for (let i = this.jets.length - 1; i >= 0; i--) {
-      const j = this.jets[i]; j.y += j.vy * speedMult;
-      j.contrailL.push({ x: j.x - 12, y: j.y }); j.contrailR.push({ x: j.x + 12, y: j.y });
+      const j = this.jets[i];
+      const enemyTeam: TeamId = j.team === 'A' ? 'B' : 'A';
+      const eBase = enemyTeam === 'A' ? state.teamA : state.teamB;
+      const eBaseY = enemyTeam === 'A' ? this.baseAY : this.baseBY;
+
+      // Buscar objetivo prioritario mientras tenga bombas: torre lateral viva más cercana -> base enemiga
+      let targetX = this.safeCenterX;
+      let targetY = eBaseY;
+      let bestDistSq = Infinity;
+
+      for (const lane of [0, 1] as const) {
+        if (eBase.sideDefenses[lane].hp > 0) {
+          const tp = this.getSideTowerPos(enemyTeam, lane);
+          const d2 = distSq(j.x, j.y, tp.x, tp.y);
+          if (d2 < bestDistSq) {
+            bestDistSq = d2;
+            targetX = tp.x;
+            targetY = tp.y;
+          }
+        }
+      }
+
+      if (bestDistSq === Infinity) {
+        bestDistSq = distSq(j.x, j.y, targetX, targetY);
+      }
+
+      if (j.bombsLeft > 0) {
+        const desiredAngle = Math.atan2(targetY - j.y, targetX - j.x);
+        let diff = desiredAngle - j.angle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        j.angle += diff * Math.min(1, 0.12 * ts);
+      }
+
+      j.x += Math.cos(j.angle) * j.speed * speedMult;
+      j.y += Math.sin(j.angle) * j.speed * speedMult;
+
+      const perpX = -Math.sin(j.angle) * 12;
+      const perpY = Math.cos(j.angle) * 12;
+      j.contrailL.push({ x: j.x + perpX, y: j.y + perpY });
+      j.contrailR.push({ x: j.x - perpX, y: j.y - perpY });
       if (j.contrailL.length > 14) { j.contrailL.shift(); j.contrailR.shift(); }
+
       j.bombTimer -= ts;
       if (j.bombsLeft > 0 && j.bombTimer <= 0 && j.y > this.baseAY - 15 && j.y < this.baseBY + 15) {
         j.bombsLeft--; j.bombTimer = 10;
-        const enemyTeam: TeamId = j.team === 'A' ? 'B' : 'A';
-        const eBase = enemyTeam === 'A' ? state.teamA : state.teamB;
-        let btx = j.x + (Math.random() - 0.5) * 18;
-        let bty = Math.min(this.baseBY, Math.max(this.baseAY, j.y + (j.team === 'A' ? 42 : -42)));
-
-        const nearestLane: 0 | 1 = Math.abs(j.x - bLeft) <= Math.abs(j.x - bRight) ? 0 : 1;
-        if (eBase.sideDefenses[nearestLane].hp > 0) {
-          const tp = this.getSideTowerPos(enemyTeam, nearestLane);
-          if (Math.abs(tp.y - bty) < 65) { btx = tp.x; bty = tp.y; }
-        } else if (this.isMainBaseVulnerable(enemyTeam)) {
-          const eBaseY = enemyTeam === 'A' ? this.baseAY : this.baseBY;
-          if (Math.abs(eBaseY - bty) < 75) { btx = this.safeCenterX; bty = eBaseY; }
-        }
+        const btx = bestDistSq < 110 * 110
+          ? targetX + (Math.random() - 0.5) * 12
+          : j.x + Math.cos(j.angle) * 42 + (Math.random() - 0.5) * 16;
+        const bty = bestDistSq < 110 * 110
+          ? targetY + (Math.random() - 0.5) * 12
+          : Math.min(this.baseBY, Math.max(this.baseAY, j.y + Math.sin(j.angle) * 42));
 
         this.bombs.push({
           team: j.team, x: j.x, y: j.y, tx: btx, ty: bty, progress: 0,
           color: j.team === 'A' ? state.teamA.color : state.teamB.color,
         });
       }
-      if (j.y < this.H * 0.05 || j.y > this.H * 0.9) this.jets.splice(i, 1);
+      if (j.y < this.H * 0.03 || j.y > this.H * 0.95 || j.x < -40 || j.x > this.W + 40) {
+        this.jets.splice(i, 1);
+      }
     }
 
     for (let i = this.bombs.length - 1; i >= 0; i--) {
@@ -1058,7 +1088,7 @@ export class Simulation {
       drawTrail(j.contrailL);
       drawTrail(j.contrailR);
 
-      ctx.save(); ctx.translate(j.x, j.y); ctx.rotate(j.team === 'A' ? Math.PI / 2 : -Math.PI / 2);
+      ctx.save(); ctx.translate(j.x, j.y); ctx.rotate(j.angle);
       ctx.fillStyle = '#1E293B'; ctx.strokeStyle = col; ctx.lineWidth = 1.8;
       ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-9, -14); ctx.lineTo(-6, 0); ctx.lineTo(-9, 14); ctx.closePath(); ctx.fill(); ctx.stroke();
       ctx.restore();
@@ -1094,6 +1124,7 @@ export class Simulation {
 
   private drawSideTowers(team: TeamId, baseObj: BaseState, biome: ReturnType<typeof getActiveBiome>): void {
     const ctx = this.ctx;
+    const barY = team === 'A' ? -20 : 16.5;
     ([0, 1] as const).forEach((lane) => {
       const sd = baseObj.sideDefenses[lane];
       const pos = this.getSideTowerPos(team, lane);
@@ -1113,8 +1144,8 @@ export class Simulation {
       ctx.fillRect(0, -2, 12, 4);
       ctx.restore();
 
-      ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(-14, -20, 28, 3.5);
-      ctx.fillStyle = baseObj.color; ctx.fillRect(-14, -20, 28 * (sd.hp / sd.maxHp), 3.5);
+      ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(-14, barY, 28, 3.5);
+      ctx.fillStyle = baseObj.color; ctx.fillRect(-14, barY, 28 * (sd.hp / sd.maxHp), 3.5);
       ctx.restore();
     });
   }

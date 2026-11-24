@@ -3,6 +3,7 @@ import { TeamId } from '../core/EventBus';
 export interface ShortcutActions {
   togglePanel: () => void;
   toggleTelemetry: () => void;
+  toggleLeague: () => void;
   toggleSafeZones: () => void;
   toggleDemoMode: () => void;
   activateSuddenDeath: () => void;
@@ -29,6 +30,7 @@ export function initInputShortcuts(actions: ShortcutActions): void {
     switch (k) {
       case 'h': actions.togglePanel(); break;
       case 'i': actions.toggleTelemetry(); break;
+      case 'l': actions.toggleLeague(); break;
       case 's': actions.toggleSafeZones(); break;
       case 'd': actions.toggleDemoMode(); break;
       case 'm': actions.activateSuddenDeath(); break;
