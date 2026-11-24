@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>TACTICAL ARENA V2.3 — Elixir, Biomas &amp; Audio Épico</title>
+</head>
+<body>
+
+  <div id="stageFrame">
+  <div id="stage">
+    <canvas id="arenaCanvas"></canvas>
+
+    <!-- VIÑETAS DE URGENCIA -->
+    <div id="frenzyVignette"></div>
+    <div id="suddenDeathVignette"></div>
+
+    <!-- WHALE CINEMATIC TAKEOVER (3 SEGUNDOS) -->
+    <div id="whaleTakeover" class="hidden">
+      <div class="takeover-card">
+        <div style="font-size:9px;font-weight:900;letter-spacing:0.22em;color:#FCD34D;margin-bottom:8px;">⚡ COMANDANTE SUPREMO ⚡</div>
+        <div style="position:relative;width:74px;height:74px;margin:0 auto 8px auto;">
+          <img id="tkAvatar" src="" alt="" style="width:74px;height:74px;border-radius:50%;object-fit:cover;border:3px solid #FBBF24;box-shadow:0 0 26px rgba(251,191,36,0.65);" />
+          <span style="position:absolute;bottom:-4px;right:-4px;font-size:20px;">☢️</span>
+        </div>
+        <div id="tkUser" style="font-size:17px;font-weight:900;color:#FFFFFF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@VIP</div>
+        <div id="tkSub" style="font-size:10.5px;font-weight:700;color:#FDE68A;margin-top:3px;">ATAQUE NUCLEAR ORBITAL</div>
+      </div>
+    </div>
+
+    <!-- CAPA HUD TRANSPARENTE -->
+    <div id="hud">
+
+      <button id="obsAudioUnlock" class="hidden">🔇 Click para activar audio</button>
+
+      <!-- BARRA SUPERIOR DE UTILIDADES -->
+      <div id="topUtilBar">
+        <div id="wsPillTop" class="glass-soft util-btn" title="Estado WebSocket TikFinity (H)">
+          <span id="wsTopDot" style="width:6px;height:6px;border-radius:50%;background:#64748B;"></span>
+          <span id="wsTopText">Offline</span>
+        </div>
+        <div class="util-group">
+          <button id="btnQuickDemo" class="glass-soft util-btn" title="Modo Demo (D)">
+            <span id="demoDotTop" style="width:6px;height:6px;border-radius:50%;background:#34D399;"></span>
+            <span style="color:#FDE68A;">DEMO</span>
+          </button>
+          <button id="btnQuickSafe" class="glass-soft util-btn" style="color:#FDA4AF;" title="Safe Zones TikTok (S)">SAFE</button>
+          <button id="btnOpenTelemetry" class="glass-soft util-btn util-icon" title="Telemetría (I)">📊</button>
+          <button id="btnQuickMute" class="glass-soft util-btn util-icon" title="Audio ON/OFF">🔊</button>
+          <button id="btnOpenPanel" class="glass-soft util-btn util-icon" title="Ajustes (H)">⚙️</button>
+        </div>
+      </div>
+
+      <!-- NOTIFICATION DOCK ÚNICO (Bioma, Regalos, Frenesí, EMP, Hack, Pánico) -->
+      <div id="notificationDock" class="hidden" role="status" aria-live="polite" aria-atomic="true">
+        <div id="notificationVisual" class="notification-visual">
+          <img id="notificationAvatar" class="hidden" src="" alt="" />
+          <span id="notificationGlyph">⚔️</span>
+        </div>
+        <div class="notification-copy">
+          <div class="notification-line">
+            <strong id="notificationTitle">EVENTO</strong>
+            <span id="notificationSub">La batalla continúa</span>
+          </div>
+        </div>
+        <span id="notificationTag">LIVE</span>
+        <div id="notificationProgress" class="notification-progress"></div>
+      </div>
+
+      <!-- GUÍA SAFE ZONES TIKTOK (TECLA S) -->
+      <div id="safeZoneGuide" class="hidden">
+        <div class="sz-band" style="top:0;left:0;right:0;height:10%;border-bottom:1px dashed;">CONTROLES SUPERIORES · 10%</div>
+        <div class="sz-band" style="bottom:0;left:0;right:0;height:14%;border-top:1px dashed;">CHAT Y REGALOS · 14%</div>
+        <div class="sz-band" style="top:10%;bottom:14%;right:0;width:12%;border-left:1px dashed;writing-mode:vertical-rl;">ICONOS TIKTOK · 12%</div>
+        <div class="sz-band" style="top:10%;bottom:14%;left:0;width:3%;border-right:1px dashed;writing-mode:vertical-rl;">MARGEN · 3%</div>
+        <div style="position:absolute;top:10%;bottom:14%;left:3%;right:12%;border:1px solid rgba(52,211,153,0.85);border-radius:8px;"></div>
+      </div>
+
+      <!-- ZONA SEGURA DE TIKTOK LIVE (FULL-BLEED) -->
+      <div id="safeZoneHUD">
+
+        <!-- 1. CABECERA SEGURA -->
+        <div style="display:flex;flex-direction:column;gap:4px;width:100%;">
+          <div id="onboardingTicker" class="glass-soft">1. Escribe MX o AR en chat para elegir bando</div>
+
+          <div class="top-meta-row">
+            <div class="glass score-pill tabular">
+              <span id="scoreFlagA">🇲🇽</span>
+              <span id="winsA">0</span>
+              <span style="color:#64748B;font-size:8.5px;">-</span>
+              <span id="winsB">0</span>
+              <span id="scoreFlagB">🇦🇷</span>
+            </div>
+
+            <div id="timerPill" class="glass timer-pill tabular">
+              <span id="timerIcon">⏱️</span>
+              <span id="timerText">03:00</span>
+            </div>
+
+            <div id="mvpStrip" class="glass">
+              <div style="font-size:8.5px;color:#94A3B8;padding:0 4px;">👑 Top 3 MVP</div>
+            </div>
+          </div>
+
+          <!-- Base Norte (Equipo A) + Barra de Elixir -->
+          <div id="cardBaseA" class="glass base-card">
+            <div class="base-header">
+              <div class="base-id">
+                <span id="flagA" style="font-size:14px;line-height:1;">🇲🇽</span>
+                <span id="nameA" class="base-name">MÉXICO</span>
+                <span id="keyBadgeA" class="tag-pill">MX</span>
+                <span id="streakBadgeA" class="tag-pill streak-pill hidden">🔥 1</span>
+                <span id="shieldBadgeA" class="tag-pill shield-pill hidden">🛡️ 12s</span>
+                <span id="empBadgeA" class="tag-pill emp-pill hidden">⚡ EMP 10s</span>
+              </div>
+              <div class="tabular" style="font-size:10px;font-weight:800;display:flex;align-items:center;gap:4px;">
+                <span id="hpPctA" style="color:var(--team-a);font-size:9px;">100%</span>
+                <span style="color:#475569;">·</span>
+                <span id="hpTextA">3000</span>
+              </div>
+            </div>
+            <div class="hp-track">
+              <div id="hpTrailA" class="hp-trail" style="width:100%;"></div>
+              <div id="hpBarA" class="hp-fill" style="width:100%;background:var(--team-a);"></div>
+            </div>
+            <div class="elixir-row">
+              <div class="elixir-track" aria-label="Elixir Equipo A">
+                <div id="elixirFillA" class="elixir-fill" style="width:50%;"></div>
+                <div class="elixir-ticks">
+                  <span></span><span></span><span></span><span></span><span></span>
+                  <span></span><span></span><span></span><span></span><span></span>
+                </div>
+              </div>
+              <span id="elixirValA" class="elixir-badge tabular">⚡5.0</span>
+              <span id="queueValA" class="queue-badge tabular hidden">⏳0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. ZONA CENTRAL 100% DESPEJADA -->
+        <div id="centerArenaHUD"></div>
+
+        <!-- 3. PIE SEGURO (BASE SUR + BARRA DE FRENESÍ HORIZONTAL + LEYENDA DE REGALOS) -->
+        <div style="display:flex;flex-direction:column;gap:4px;width:100%;">
+          <div id="cardBaseB" class="glass base-card">
+            <div class="base-header">
+              <div class="base-id">
+                <span id="flagB" style="font-size:14px;line-height:1;">🇦🇷</span>
+                <span id="nameB" class="base-name">ARGENTINA</span>
+                <span id="keyBadgeB" class="tag-pill">AR</span>
+                <span id="streakBadgeB" class="tag-pill streak-pill hidden">🔥 1</span>
+                <span id="shieldBadgeB" class="tag-pill shield-pill hidden">🛡️ 12s</span>
+                <span id="empBadgeB" class="tag-pill emp-pill hidden">⚡ EMP 10s</span>
+              </div>
+              <div class="tabular" style="font-size:10px;font-weight:800;display:flex;align-items:center;gap:4px;">
+                <span id="hpPctB" style="color:var(--team-b);font-size:9px;">100%</span>
+                <span style="color:#475569;">·</span>
+                <span id="hpTextB">3000</span>
+              </div>
+            </div>
+            <div class="hp-track">
+              <div id="hpTrailB" class="hp-trail" style="width:100%;"></div>
+              <div id="hpBarB" class="hp-fill" style="width:100%;background:var(--team-b);"></div>
+            </div>
+            <div class="elixir-row">
+              <div class="elixir-track" aria-label="Elixir Equipo B">
+                <div id="elixirFillB" class="elixir-fill" style="width:50%;"></div>
+                <div class="elixir-ticks">
+                  <span></span><span></span><span></span><span></span><span></span>
+                  <span></span><span></span><span></span><span></span><span></span>
+                </div>
+              </div>
+              <span id="elixirValB" class="elixir-badge tabular">⚡5.0</span>
+              <span id="queueValB" class="queue-badge tabular hidden">⏳0</span>
+            </div>
+          </div>
+
+          <!-- Barra Horizontal Compacta de Frenesí x2 -->
+          <div id="frenzyStrip" class="glass-soft">
+            <span class="frenzy-strip-label">⚡ FRENESÍ</span>
+            <div class="frenzy-h-track">
+              <div id="frenzyGaugeFill" style="width:0%;"></div>
+            </div>
+            <span id="frenzyGaugePct" class="frenzy-strip-pct tabular">0%</span>
+            <span id="frenzyGaugeCount" class="frenzy-strip-count tabular">0/100</span>
+            <span id="tapRuleBadge" class="frenzy-strip-rule">❤️ 15 = +⚡</span>
+          </div>
+
+          <div id="giftLegendBox" class="glass-soft">
+            <div id="giftLegendGrid" class="gift-grid"></div>
+          </div>
+        </div>
+
+      </div> <!-- Fin #safeZoneHUD -->
+
+      <!-- CINEMÁTICA ÉPICA DE VICTORIA · 10 SEGUNDOS -->
+      <div id="victoryOverlay" class="hidden" aria-live="polite">
+        <div class="vic-rays"></div>
+        <div class="vic-spark vic-spark-a">✦</div>
+        <div class="vic-spark vic-spark-b">✧</div>
+        <div class="vic-spark vic-spark-c">✦</div>
+        <div class="vic-cinematic-content">
+          <div class="vic-kicker">TACTICAL ARENA · FIN DE BATALLA</div>
+          <div class="vic-crown">♛</div>
+          <div class="vic-flag-shell"><div id="vicFlag" aria-label="Bandera ganadora"></div></div>
+          <div class="vic-title">¡FELICIDADES!</div>
+          <div class="vic-subtitle">¡EL EQUIPO HA TRIUNFADO!</div>
+          <div id="vicName">MÉXICO</div>
+          <div id="vicStreakText" class="vic-streak hidden">🔥 2 VICTORIAS EN EL TRONO</div>
+
+          <div class="vic-mvp-card">
+            <img id="vicMvpAvatar" src="" alt="" />
+            <div class="vic-mvp-copy">
+              <div class="vic-mvp-label">👑 MVP DE LA RONDA</div>
+              <div id="vicMvpUser">@Comandante</div>
+              <div id="vicMvpScore" class="tabular">0 pts</div>
+            </div>
+          </div>
+
+          <div id="vicChallengerBanner" class="vic-challenger hidden">⚔️ NUEVO RETADOR: 🇨🇴 COLOMBIA</div>
+          <div class="vic-countdown-label">SIGUIENTE BATALLA EN <strong id="vicCountdown" class="tabular">10</strong>s</div>
+          <div class="vic-progress"><span class="vic-progress-fill"></span></div>
+          <div class="vic-thanks">GRACIAS POR PARTICIPAR</div>
+        </div>
+      </div>
+
+      <!-- PANEL DE AJUSTES (TECLA H O ⚙️) -->
+      <div id="controlPanel" class="modal-overlay hidden">
+        <div class="modal-header">
+          <div>
+            <div style="font-size:13px;font-weight:900;letter-spacing:0.05em;">TACTICAL ARENA V2.3</div>
+            <div style="font-size:9px;color:#94A3B8;margin-top:2px;">Elixir, Biomas &amp; Audio Épico · H: Ajustes · I: Telemetría · S: Safe · T/Y: Tap</div>
+          </div>
+          <button id="btnClosePanel" class="btn">Cerrar ✕</button>
+        </div>
+
+        <div class="grid-2" style="margin-bottom:10px;">
+          <button id="btnDemoToggle" class="btn btn-emerald">⏹ Modo Demo: ON</button>
+          <button id="btnSafeToggle" class="btn btn-danger">📐 Safe Zones: OFF</button>
+          <button id="btnAudioToggle" class="btn">🔊 Audio: ON</button>
+          <button id="btnTtsToggle" class="btn">🗣️ TTS Interno: OFF</button>
+          <button id="btnAiToggle" class="btn">🤖 Director IA: ON</button>
+          <button id="btnTriggerSudden" class="btn btn-danger">💀 Muerte Súbita [M]</button>
+          <button id="btnResetRound" class="btn">🔄 Reiniciar Ronda</button>
+          <button id="btnResetSession" class="btn btn-danger">🗑️ Reset Sesión</button>
+        </div>
+
+        <div class="section-card">
+          <div class="section-title">
+            <span style="color:#A78BFA;">🎵 Música de Fondo (0% Copyright + Ducking)</span>
+            <span id="bpmBadge" class="tabular" style="color:#34D399;">128 BPM</span>
+          </div>
+          <select id="selMusicMode" class="sel" style="margin-bottom:8px;">
+            <option value="starfox">🎵 Épica por Bioma (4 Pistas Originales)</option>
+            <option value="pulse">⚡ Pulso Táctico (Sin Melodía)</option>
+            <option value="mp3">📁 MP3 Propio</option>
+            <option value="off">🔇 Silencio</option>
+          </select>
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:7px;">
+            <span style="font-size:9.5px;color:#CBD5E1;white-space:nowrap;">Volumen Música</span>
+            <input id="sliderMusicVol" type="range" min="5" max="100" step="5" value="35" style="flex:1;" />
+            <strong id="lblMusicVol" class="tabular" style="font-size:9.5px;width:32px;text-align:right;">35%</strong>
+          </div>
+          <div id="mp3UploadRow" style="display:flex;gap:6px;align-items:center;">
+            <label class="btn btn-primary" style="flex:1;text-align:center;font-size:10px;cursor:pointer;">
+              📁 Cargar .MP3 / .OGG Local
+              <input id="inMusicFile" type="file" accept="audio/*" class="hidden" />
+            </label>
+          </div>
+          <div id="musicTrackLabel" style="font-size:8.8px;color:#94A3B8;margin-top:5px;">
+            Activo: 4 pistas originales por bioma (+18% BPM en Muerte Súbita, ducking al 20% en alertas).
+          </div>
+        </div>
+
+        <div class="section-card" style="border-color:rgba(251,113,133,0.32);">
+          <div class="section-title">
+            <span style="color:#FDA4AF;">❤️ Configuración de Tap Tap (Likes)</span>
+            <span style="color:#94A3B8;">Teclas T / Y / Space</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;">
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px;">
+                <span style="color:#E2E8F0;">Likes por Batería de Elixir</span>
+                <strong id="lblPersonalTap" class="tabular" style="color:#FDA4AF;">15 ❤️</strong>
+              </div>
+              <input id="sliderPersonalTap" type="range" min="5" max="100" step="5" value="15" style="width:100%;" />
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px;">
+                <span style="color:#E2E8F0;">Meta de Likes para Frenesí x2</span>
+                <strong id="lblFrenzyGoal" class="tabular" style="color:#FCD34D;">100 ❤️</strong>
+              </div>
+              <input id="sliderFrenzyGoal" type="range" min="25" max="500" step="25" value="100" style="width:100%;" />
+            </div>
+            <button id="btnUnderdogTapToggle" class="btn" style="text-align:left;display:flex;justify-content:space-between;align-items:center;">
+              <span>Likes sin equipo apoyan al que va perdiendo</span>
+              <strong id="lblUnderdogTap" style="color:#34D399;">ON</strong>
+            </button>
+          </div>
+          <div class="grid-3">
+            <button id="btnTestTapA" class="btn btn-rose" style="font-size:9.5px;padding:6px 4px;">❤️ +15 Tap Norte</button>
+            <button id="btnTestTapB" class="btn btn-rose" style="font-size:9.5px;padding:6px 4px;">❤️ +15 Tap Sur</button>
+            <button onclick="activateFrenzy()" class="btn btn-amber" style="font-size:9.5px;padding:6px 4px;">⚡ Frenesí x2</button>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-title">
+            <span style="color:#7DD3FC;">TikFinity WebSocket (Auto-Reconnect)</span>
+            <span id="wsStatus" style="color:#94A3B8;">Offline</span>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <input id="wsUrl" class="inp" type="text" value="ws://localhost:21213/" style="font-family:monospace;" />
+            <button id="btnWsConnect" class="btn btn-primary" style="flex-shrink:0;">Conectar</button>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-title">
+            <span style="color:#FDBA74;">Torneo (King of the Hill) &amp; Presets</span>
+            <button id="btnTournamentToggle" class="btn" style="padding:3px 8px;font-size:9.5px;">Torneo: ON</button>
+          </div>
+          <div class="grid-2" style="margin-bottom:6px;">
+            <button id="btnPresetWorld" class="btn" style="font-size:9.5px;">🌎 Países (MX vs AR)</button>
+            <button id="btnPresetLigaMX" class="btn btn-amber" style="font-size:9.5px;">⚽ Liga MX (🦅 vs 🐐)</button>
+          </div>
+          <div id="rosterChips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;"></div>
+          <div style="display:flex;gap:4px;">
+            <input id="inAddFlag" class="inp" placeholder="🇯🇵" style="width:40px;text-align:center;" />
+            <input id="inAddName" class="inp" placeholder="Nombre (ej. JAPÓN)" />
+            <input id="inAddKey" class="inp" placeholder="JP" style="width:44px;text-align:center;text-transform:uppercase;" />
+            <button id="btnAddRoster" class="btn btn-emerald" style="flex-shrink:0;">+ Añadir</button>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-title">
+            <span style="color:#FCD34D;">Gift Mapper (giftId + Alias + PNG)</span>
+            <button id="btnSaveGifts" class="btn btn-emerald" style="padding:3px 8px;font-size:9.5px;">Guardar</button>
+          </div>
+          <div style="overflow-x:auto;">
+            <table class="gm-table">
+              <thead>
+                <tr><th>Acción</th><th>IDs / Alias</th><th>🪙</th><th>PNG</th></tr>
+              </thead>
+              <tbody id="giftMapperBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-title"><span>Pruebas Manuales (Atajos TikFinity)</span></div>
+          <div class="grid-2">
+            <button onclick="manualTestGift('A', 1)" class="btn">[1] A: Soldados</button>
+            <button onclick="manualTestGift('B', 1)" class="btn">[7] B: Soldados</button>
+            <button onclick="manualTestGift('A', 2)" class="btn">[2] A: Tanque</button>
+            <button onclick="manualTestGift('B', 2)" class="btn">[8] B: Tanque</button>
+            <button onclick="manualTestGift('A', 3)" class="btn">[3] A: Jet Furtivo</button>
+            <button onclick="manualTestGift('B', 3)" class="btn">[9] B: Jet Furtivo</button>
+            <button onclick="manualTestGift('A', 4)" class="btn btn-amber">[4] A: Nuclear (3s)</button>
+            <button onclick="manualTestGift('B', 4)" class="btn btn-amber">[0] B: Nuclear (3s)</button>
+            <button onclick="manualTestGift('A', 5)" class="btn">[5] A: Escudo +15%</button>
+            <button onclick="manualTestGift('B', 5)" class="btn">[6] B: Escudo +15%</button>
+            <button onclick="manualTestGift('A', 6)" class="btn btn-cyan">[Q] A: EMP (10s)</button>
+            <button onclick="manualTestGift('B', 6)" class="btn btn-cyan">[E] B: EMP (10s)</button>
+            <button onclick="manualTestGift('A', 7)" class="btn btn-purple">[Z] A: Cyber Hack</button>
+            <button onclick="manualTestGift('B', 7)" class="btn btn-purple">[X] B: Cyber Hack</button>
+            <button onclick="simulateFollowEvent()" class="btn btn-emerald">[F] ➕ Follow</button>
+            <button onclick="simulateShareEvent()" class="btn btn-primary">[G] ✈️ Share (Jet)</button>
+            <button onclick="triggerMeteorShower('Manual')" class="btn btn-danger" style="grid-column:span 2;">[B] ☄️ Lluvia de Meteoritos</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODAL DE TELEMETRÍA (TECLA I O 📊) -->
+      <div id="telemetryModal" class="modal-overlay hidden">
+        <div class="modal-header">
+          <div>
+            <div style="font-size:13px;font-weight:900;letter-spacing:0.05em;">📊 TELEMETRÍA V2.3</div>
+            <div style="font-size:9px;color:#94A3B8;margin-top:2px;">Monetización, algoritmo y estabilidad WebSocket (solo eventos reales)</div>
+          </div>
+          <button id="btnCloseTelemetry" class="btn">Cerrar ✕</button>
+        </div>
+
+        <div class="grid-3" style="margin-bottom:10px;">
+          <div class="kpi-box"><div class="kpi-label">Duración</div><div id="telDuration" class="kpi-val tabular">00:00:00</div></div>
+          <div class="kpi-box"><div class="kpi-label">Monedas Est.</div><div id="telCoins" class="kpi-val tabular" style="color:#FDE047;">0 🪙</div></div>
+          <div class="kpi-box"><div class="kpi-label">Monedas/Hr</div><div id="telCoinsHr" class="kpi-val tabular" style="color:#34D399;">0</div></div>
+          <div class="kpi-box"><div class="kpi-label">Regalos</div><div id="telGifts" class="kpi-val tabular">0</div></div>
+          <div class="kpi-box"><div class="kpi-label">Tap Taps</div><div id="telTaps" class="kpi-val tabular" style="color:#FDA4AF;">0</div></div>
+          <div class="kpi-box"><div class="kpi-label">Tap/Gift</div><div id="telRatio" class="kpi-val tabular">0:1</div></div>
+          <div class="kpi-box"><div class="kpi-label">Follows</div><div id="telFollows" class="kpi-val tabular" style="color:#6EE7B7;">0</div></div>
+          <div class="kpi-box"><div class="kpi-label">Shares</div><div id="telShares" class="kpi-val tabular" style="color:#7DD3FC;">0</div></div>
+          <div class="kpi-box"><div class="kpi-label">Avatares LRU</div><div id="telCache" class="kpi-val tabular">0/150</div></div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-title"><span>Top Regalos Enviados</span></div>
+          <div id="telTopGifts" style="font-size:10px;color:#CBD5E1;display:flex;flex-direction:column;gap:4px;"></div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-title"><span>Log WebSocket TikFinity</span></div>
+          <div id="telWsLog" style="font-family:monospace;font-size:9px;color:#94A3B8;max-height:110px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;"></div>
+        </div>
+
+        <div class="grid-3">
+          <button id="btnExportJson" class="btn btn-primary">⬇ JSON</button>
+          <button id="btnExportCsv" class="btn btn-emerald">⬇ CSV</button>
+          <button id="btnTelReset" class="btn btn-danger">🗑️ Reset</button>
+        </div>
+      </div>
+
+    </div> <!-- Fin #hud -->
+  </div> <!-- Fin #stage -->
+  </div> <!-- Fin #stageFrame -->
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
