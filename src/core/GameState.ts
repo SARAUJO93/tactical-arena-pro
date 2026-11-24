@@ -571,6 +571,9 @@ export interface FinalizeRoundOptions {
  *  - Llama savePersistentState().
  */
 export function finalizeRound(winner: TeamId, opts: FinalizeRoundOptions = {}): RoundLog {
+  if (!state.roundActive) {
+    throw new Error('Cannot finalize a round that is not active');
+  }
   const featured = Boolean(opts.featured);
   const suddenDeath = Boolean(opts.suddenDeath);
   const durationSec = Math.max(1, Math.round((Date.now() - state.currentRoundStart) / 1000));
