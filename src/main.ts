@@ -20,6 +20,7 @@ import { initInputShortcuts } from './ui/InputShortcuts';
 import { cycleNextBiome, getActiveBiome, getBiomeProgressText } from './config/biomes';
 import { renderTeamFlagHtml } from './ui/FlagRenderer';
 import { NotificationDock } from './ui/NotificationDock';
+import { consumeTapRewards } from './utils/tapRewards';
 
 const $ = (id: string) => document.getElementById(id)!;
 const notificationDock = new NotificationDock($);
@@ -362,16 +363,18 @@ bus.on('game:tap', ({ user, count, avatarUrl, forcedTeam, isDemo = false }) => {
   }
 
   if (team) {
-    let likes = (state.viewerLikes.get(clean) || 0) + count;
-    let guard = 0;
-    while (likes >= state.personalTapThreshold && guard++ < 4) {
-      likes -= state.personalTapThreshold;
+    const tapResult = consumeTapRewards(
+      state.viewerLikes.get(clean) || 0,
+      count,
+      state.personalTapThreshold
+    );
+    for (let i = 0; i < tapResult.rewardCount; i++) {
       elixir.addElixir(team, 0.6);
       elixir.enqueueOrder({ team, kind: 'INFANTRY', priority: 2, user: clean, avatarUrl, isTapBadge: true });
       addMVPPoints(clean, team, avatarUrl, 15, isDemo);
       synth.playSFX('tap');
     }
-    state.viewerLikes.set(clean, Math.min(likes, state.personalTapThreshold * 2));
+    state.viewerLikes.set(clean, Math.min(tapResult.residue, state.personalTapThreshold * 2));
   }
   if (!state.frenzyActive) {
     state.globalTapCount += count;

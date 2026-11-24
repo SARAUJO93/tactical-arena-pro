@@ -718,6 +718,7 @@ export function resetDaily(): void {
     rec.period.tapsToday = 0;
   }
   state.lastDailyReset = Date.now();
+  saveNow();
 }
 
 /** Cierra temporada actual: corona campeón y archiva. */
@@ -900,6 +901,212 @@ export function saveNow(): void {
   }
 }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function nonNegativeNumber(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(0, value)
+    : fallback;
+}
+
+export function sanitizeSessionMvp(value: unknown): Record<string, MvpEntry> {
+  if (!isObject(value)) return {};
+  const result: Record<string, MvpEntry> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (!isObject(entry) || typeof entry.user !== 'string') continue;
+    if (entry.team !== 'A' && entry.team !== 'B') continue;
+    result[key] = {
+      user: entry.user.slice(0, 64),
+      team: entry.team,
+      avatarUrl: typeof entry.avatarUrl === 'string' ? entry.avatarUrl.slice(0, 300) : '',
+      score: nonNegativeNumber(entry.score),
+    };
+  }
+  return result;
+}
+
+export function sanitizePlayerRecords(value: unknown): Record<string, PlayerRecord> {
+  if (!isObject(value)) return {};
+  const result: Record<string, PlayerRecord> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (!isObject(raw) || typeof raw.user !== 'string') continue;
+    const record = emptyPlayerRecord(raw.user.slice(0, 64), typeof raw.avatarUrl === 'string' ? raw.avatarUrl.slice(0, 300) : '');
+    record.favoriteTeam = raw.favoriteTeam === 'A' || raw.favoriteTeam === 'B' ? raw.favoriteTeam : null;
+
+    if (isObject(raw.lifetime)) {
+      for (const field of ['taps', 'coins', 'gifts', 'follows', 'shares', 'kills', 'baseDamage', 'towerKills'] as const) {
+        record.lifetime[field] = nonNegativeNumber(raw.lifetime[field]);
+      }
+    }
+    if (isObject(raw.period)) {
+      record.period.coinsToday = nonNegativeNumber(raw.period.coinsToday);
+      record.period.tapsToday = nonNegativeNumber(raw.period.tapsToday);
+      record.period.coinsSeason = nonNegativeNumber(raw.period.coinsSeason);
+      record.period.tapsSeason = nonNegativeNumber(raw.period.tapsSeason);
+    }
+    if (isObject(raw.peaks)) {
+      record.peaks.maxSessionScore = nonNegativeNumber(raw.peaks.maxSessionScore);
+      record.peaks.maxRoundScore = nonNegativeNumber(raw.peaks.maxRoundScore);
+      record.peaks.maxTapsRound = nonNegativeNumber(raw.peaks.maxTapsRound);
+      record.peaks.maxCoinsRound = nonNegativeNumber(raw.peaks.maxCoinsRound);
+    }
+    record.mvpSessions = nonNegativeNumber(raw.mvpSessions);
+    record.mvpRounds = nonNegativeNumber(raw.mvpRounds);
+    record.firstSeen = nonNegativeNumber(raw.firstSeen, record.firstSeen);
+    record.lastSeen = nonNegativeNumber(raw.lastSeen, record.lastSeen);
+    if (Array.isArray(raw.badges)) record.badges = raw.badges.filter((badge): badge is string => typeof badge === 'string').slice(0, 100);
+    if (isObject(raw.teamsSupported)) {
+      if (typeof raw.teamsSupported.A === 'number') record.teamsSupported.A = nonNegativeNumber(raw.teamsSupported.A);
+      if (typeof raw.teamsSupported.B === 'number') record.teamsSupported.B = nonNegativeNumber(raw.teamsSupported.B);
+    }
+    result[key] = record;
+  }
+  return result;
+}
+
+export function sanitizeTeamRecords(value: unknown): Record<string, TeamRecord> {
+  if (!isObject(value)) return {};
+  const result: Record<string, TeamRecord> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (!isObject(raw) || typeof raw.key !== 'string') continue;
+    result[key] = {
+      key: raw.key.slice(0, 16),
+      name: typeof raw.name === 'string' ? raw.name.slice(0, 64) : raw.key,
+      flag: typeof raw.flag === 'string' ? raw.flag.slice(0, 16) : '',
+      color: typeof raw.color === 'string' ? raw.color.slice(0, 32) : '#94A3B8',
+      wins: nonNegativeNumber(raw.wins),
+      losses: nonNegativeNumber(raw.losses),
+      streak: nonNegativeNumber(raw.streak),
+      bestStreak: nonNegativeNumber(raw.bestStreak),
+      championships: nonNegativeNumber(raw.championships),
+      elo: nonNegativeNumber(raw.elo, ELO_INITIAL),
+      totalCoinsSpent: nonNegativeNumber(raw.totalCoinsSpent),
+      totalTaps: nonNegativeNumber(raw.totalTaps),
+      lastPlayed: nonNegativeNumber(raw.lastPlayed),
+    };
+  }
+  return result;
+}
+
+export function sanitizeRoundLogs(value: unknown): RoundLog[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((raw): raw is Record<string, unknown> => isObject(raw)).filter((raw) =>
+    typeof raw.id === 'string' &&
+    (raw.winner === 'A' || raw.winner === 'B') &&
+    typeof raw.ts === 'number'
+  ).slice(0, MAX_ROUND_LOGS).map((raw) => ({
+    id: raw.id as string,
+    ts: nonNegativeNumber(raw.ts),
+    durationSec: nonNegativeNumber(raw.durationSec, 1),
+    winner: raw.winner as TeamId,
+    winnerKey: typeof raw.winnerKey === 'string' ? raw.winnerKey.slice(0, 16) : '',
+    winnerName: typeof raw.winnerName === 'string' ? raw.winnerName.slice(0, 64) : '',
+    loserKey: typeof raw.loserKey === 'string' ? raw.loserKey.slice(0, 16) : '',
+    loserName: typeof raw.loserName === 'string' ? raw.loserName.slice(0, 64) : '',
+    suddenDeath: Boolean(raw.suddenDeath),
+    featured: Boolean(raw.featured),
+    biome: typeof raw.biome === 'string' ? raw.biome.slice(0, 32) : '',
+    totalCoins: nonNegativeNumber(raw.totalCoins),
+    totalTaps: nonNegativeNumber(raw.totalTaps),
+    mvp: isObject(raw.mvp) &&
+      typeof raw.mvp.user === 'string' &&
+      typeof raw.mvp.score === 'number'
+      ? { user: raw.mvp.user.slice(0, 64), avatarUrl: typeof raw.mvp.avatarUrl === 'string' ? raw.mvp.avatarUrl.slice(0, 300) : '', score: nonNegativeNumber(raw.mvp.score) }
+      : null,
+    topGifter: isObject(raw.topGifter) &&
+      typeof raw.topGifter.user === 'string' &&
+      typeof raw.topGifter.coins === 'number'
+      ? { user: raw.topGifter.user.slice(0, 64), coins: nonNegativeNumber(raw.topGifter.coins) }
+      : null,
+  }));
+}
+
+export function sanitizeSeason(value: unknown): SeasonData | null {
+  if (!isObject(value)) return null;
+  if (!Array.isArray(value.standings) || typeof value.index !== 'number') return null;
+  const standings = value.standings.filter(isObject).filter((entry) =>
+    typeof entry.key === 'string' &&
+    typeof entry.name === 'string'
+  ).map((entry) => ({
+    key: typeof entry.key === 'string' ? entry.key.slice(0, 16) : '',
+    name: typeof entry.name === 'string' ? entry.name.slice(0, 64) : '',
+    flag: typeof entry.flag === 'string' ? entry.flag.slice(0, 16) : '',
+    color: typeof entry.color === 'string' ? entry.color.slice(0, 32) : '#94A3B8',
+    points: nonNegativeNumber(entry.points),
+    participation: nonNegativeNumber(entry.participation),
+    wins: nonNegativeNumber(entry.wins),
+    losses: nonNegativeNumber(entry.losses),
+  }));
+  const topMvps = Array.isArray(value.topMvps)
+    ? value.topMvps.filter((entry): entry is MvpEntry => isObject(entry) &&
+      typeof entry.user === 'string' &&
+      (entry.team === 'A' || entry.team === 'B'))
+      .slice(0, 100)
+      .map((entry) => ({
+        user: entry.user.slice(0, 64),
+        team: entry.team,
+        avatarUrl: typeof entry.avatarUrl === 'string' ? entry.avatarUrl.slice(0, 300) : '',
+        score: nonNegativeNumber(entry.score),
+      }))
+    : [];
+  return {
+    index: Math.max(1, Math.floor(nonNegativeNumber(value.index, 1))),
+    startDate: nonNegativeNumber(value.startDate),
+    endDate: nonNegativeNumber(value.endDate),
+    championKey: typeof value.championKey === 'string' ? value.championKey.slice(0, 16) : null,
+    championName: typeof value.championName === 'string' ? value.championName.slice(0, 64) : null,
+    championFlag: typeof value.championFlag === 'string' ? value.championFlag.slice(0, 16) : null,
+    championMvp: isObject(value.championMvp) &&
+      typeof value.championMvp.user === 'string'
+      ? {
+          user: value.championMvp.user.slice(0, 64),
+          avatarUrl: typeof value.championMvp.avatarUrl === 'string' ? value.championMvp.avatarUrl.slice(0, 300) : '',
+          score: nonNegativeNumber(value.championMvp.score),
+        }
+      : null,
+    topMvps,
+    standings,
+  };
+}
+
+export function sanitizeGlobalRecords(value: unknown): GlobalRecords {
+  const fallback: GlobalRecords = {
+    biggestSingleRound: null,
+    fastestRound: null,
+    longestRound: null,
+    biggestUpset: null,
+  };
+  if (!isObject(value)) return fallback;
+
+  const biggestRound = isObject(value.biggestSingleRound) ? value.biggestSingleRound : null;
+  if (biggestRound) fallback.biggestSingleRound = {
+    coins: nonNegativeNumber(biggestRound.coins),
+    ts: nonNegativeNumber(biggestRound.ts),
+    winnerKey: typeof biggestRound.winnerKey === 'string' ? biggestRound.winnerKey.slice(0, 16) : '',
+  };
+  for (const [field, target] of [
+    ['fastestRound', 'fastestRound'],
+    ['longestRound', 'longestRound'],
+  ] as const) {
+    const entry = isObject(value[field]) ? value[field] : null;
+    if (entry) fallback[target] = {
+      durationSec: nonNegativeNumber(entry.durationSec),
+      ts: nonNegativeNumber(entry.ts),
+      winnerKey: typeof entry.winnerKey === 'string' ? entry.winnerKey.slice(0, 16) : '',
+    };
+  }
+  const upset = isObject(value.biggestUpset) ? value.biggestUpset : null;
+  if (upset) fallback.biggestUpset = {
+    eloDiff: nonNegativeNumber(upset.eloDiff),
+    ts: nonNegativeNumber(upset.ts),
+    winnerKey: typeof upset.winnerKey === 'string' ? upset.winnerKey.slice(0, 16) : '',
+    loserKey: typeof upset.loserKey === 'string' ? upset.loserKey.slice(0, 16) : '',
+  };
+  return fallback;
+}
+
 export function loadPersistentState(): void {
   try {
     // Migración desde la key anterior (v2.2 → v2.3)
@@ -973,7 +1180,7 @@ export function loadPersistentState(): void {
     if (persisted.musicMode === 'starfox' || persisted.musicMode === 'pulse' || persisted.musicMode === 'mp3' || persisted.musicMode === 'off') state.musicMode = persisted.musicMode;
     if (finiteNumber(persisted.musicVolume)) state.musicVolume = Math.max(0, Math.min(1, persisted.musicVolume));
     if (typeof persisted.ttsEnabled === 'boolean') state.ttsEnabled = persisted.ttsEnabled;
-    if (persisted.sessionMVP && typeof persisted.sessionMVP === 'object') state.sessionMVP = persisted.sessionMVP as Record<string, MvpEntry>;
+    if (persisted.sessionMVP !== undefined) state.sessionMVP = sanitizeSessionMvp(persisted.sessionMVP);
     if (persisted.telemetry && typeof persisted.telemetry === 'object') {
       const telemetry = persisted.telemetry as Record<string, unknown>;
       for (const key of ['totalCoins', 'totalGifts', 'totalTaps', 'totalFollows', 'totalShares'] as const) {
@@ -989,16 +1196,20 @@ export function loadPersistentState(): void {
     state.nextMeteorCoinTarget = (Math.floor(state.telemetry.totalCoins / METEOR_COIN_STEP) + 1) * METEOR_COIN_STEP;
 
     // Fase A
-    if (persisted.playerRecords && typeof persisted.playerRecords === 'object') {
-      state.playerRecords = persisted.playerRecords as Record<string, PlayerRecord>;
+    if (persisted.playerRecords !== undefined) state.playerRecords = sanitizePlayerRecords(persisted.playerRecords);
+    if (persisted.teamRecords !== undefined) state.teamRecords = sanitizeTeamRecords(persisted.teamRecords);
+    if (persisted.roundLogs !== undefined) state.roundLogs = sanitizeRoundLogs(persisted.roundLogs);
+    if (Array.isArray(persisted.seasonHistory)) {
+      state.seasonHistory = persisted.seasonHistory
+        .map((entry) => sanitizeSeason(entry))
+        .filter((entry): entry is SeasonData => entry !== null)
+        .slice(-MAX_SEASON_HISTORY);
     }
-    if (persisted.teamRecords && typeof persisted.teamRecords === 'object') {
-      state.teamRecords = persisted.teamRecords as Record<string, TeamRecord>;
+    if (persisted.currentSeason !== undefined) {
+      const season = sanitizeSeason(persisted.currentSeason);
+      if (season) state.currentSeason = season;
     }
-    if (Array.isArray(persisted.roundLogs)) state.roundLogs = persisted.roundLogs.slice(0, MAX_ROUND_LOGS) as RoundLog[];
-    if (Array.isArray(persisted.seasonHistory)) state.seasonHistory = persisted.seasonHistory.slice(-MAX_SEASON_HISTORY) as SeasonData[];
-    if (persisted.currentSeason && typeof persisted.currentSeason === 'object') state.currentSeason = persisted.currentSeason as SeasonData;
-    if (persisted.globalRecords && typeof persisted.globalRecords === 'object') state.globalRecords = persisted.globalRecords as GlobalRecords;
+    if (persisted.globalRecords !== undefined) state.globalRecords = sanitizeGlobalRecords(persisted.globalRecords);
     if (finiteNumber(persisted.lastDailyReset)) state.lastDailyReset = persisted.lastDailyReset;
     if (finiteNumber(persisted.lastSeasonReset)) state.lastSeasonReset = persisted.lastSeasonReset;
 
