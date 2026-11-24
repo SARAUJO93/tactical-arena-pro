@@ -2,6 +2,7 @@ import { TeamId } from './EventBus';
 import { LruMap } from '../utils/helpers';
 
 export const STORAGE_KEY = 'tactical_arena_v2_3_league';
+export const PERSISTENCE_SCHEMA_VERSION = 1;
 export const MAX_BASE_HP = 3000;
 export const MAX_SIDE_DEFENSE_HP = 1350;
 export const METEOR_COIN_STEP = 500;
@@ -69,6 +70,13 @@ export interface TelemetryData {
   totalTaps: number;
   totalFollows: number;
   totalShares: number;
+  roundCount: number;
+  totalRoundDurationSec: number;
+  longestRoundSec: number;
+  runtimeErrorCount: number;
+  persistenceErrorCount: number;
+  websocketDisconnectCount: number;
+  errorLog: string[];
   giftBreakdown: Record<string, { count: number; coins: number }>;
   wsLog: string[];
 }
@@ -336,6 +344,13 @@ export const state = {
     totalTaps: 0,
     totalFollows: 0,
     totalShares: 0,
+    roundCount: 0,
+    totalRoundDurationSec: 0,
+    longestRoundSec: 0,
+    runtimeErrorCount: 0,
+    persistenceErrorCount: 0,
+    websocketDisconnectCount: 0,
+    errorLog: [],
     giftBreakdown: {},
     wsLog: [],
   } as TelemetryData,
@@ -650,6 +665,9 @@ export function finalizeRound(winner: TeamId, opts: FinalizeRoundOptions = {}): 
     mvp: roundMvp ? { user: roundMvp.user, avatarUrl: roundMvp.avatarUrl, score: roundMvp.score } : null,
     topGifter: roundTopGifter,
   };
+  state.telemetry.roundCount += 1;
+  state.telemetry.totalRoundDurationSec += durationSec;
+  state.telemetry.longestRoundSec = Math.max(state.telemetry.longestRoundSec, durationSec);
   state.roundLogs.unshift(log);
   if (state.roundLogs.length > MAX_ROUND_LOGS) state.roundLogs.length = MAX_ROUND_LOGS;
 
@@ -702,6 +720,13 @@ export function resetSession(): void {
     totalTaps: 0,
     totalFollows: 0,
     totalShares: 0,
+    roundCount: 0,
+    totalRoundDurationSec: 0,
+    longestRoundSec: 0,
+    runtimeErrorCount: 0,
+    persistenceErrorCount: 0,
+    websocketDisconnectCount: 0,
+    errorLog: [],
     giftBreakdown: {},
     wsLog: [],
   };
@@ -863,6 +888,7 @@ export function saveNow(): void {
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
+        schemaVersion: PERSISTENCE_SCHEMA_VERSION,
         roster: state.roster,
         rosterCursor: state.rosterCursor,
         tournamentMode: state.tournamentMode,
@@ -900,7 +926,9 @@ export function saveNow(): void {
       })
     );
   } catch {
-    // Cuota llena / OBS private mode: ignorar silenciosamente
+    state.telemetry.persistenceErrorCount += 1;
+    state.telemetry.errorLog.unshift(`[${new Date().toLocaleTimeString('es-MX', { hour12: false })}] Persistencia: no se pudo guardar el estado`);
+    state.telemetry.errorLog = state.telemetry.errorLog.slice(0, 40);
   }
 }
 
@@ -1129,6 +1157,10 @@ export function loadPersistentState(): void {
     const d: unknown = JSON.parse(raw);
     if (!d || typeof d !== 'object' || Array.isArray(d)) throw new Error('Persisted state is not an object');
     const persisted = d as Record<string, unknown>;
+    const schemaVersion = persisted.schemaVersion;
+    if (typeof schemaVersion === 'number' && schemaVersion > PERSISTENCE_SCHEMA_VERSION) {
+      throw new Error(`Unsupported persisted schema version: ${schemaVersion}`);
+    }
     const finiteNumber = (value: unknown): value is number =>
       typeof value === 'number' && Number.isFinite(value);
     const isTeamPreset = (value: unknown): value is TeamPreset =>
@@ -1189,8 +1221,27 @@ export function loadPersistentState(): void {
       for (const key of ['totalCoins', 'totalGifts', 'totalTaps', 'totalFollows', 'totalShares'] as const) {
         if (finiteNumber(telemetry[key])) state.telemetry[key] = Math.max(0, telemetry[key]);
       }
+      if (isObject(telemetry.giftBreakdown)) {
+        for (const [name, rawEntry] of Object.entries(telemetry.giftBreakdown)) {
+          if (!isObject(rawEntry)) continue;
+          const count = finiteNumber(rawEntry.count) ? Math.max(0, Math.floor(rawEntry.count)) : 0;
+          const coins = finiteNumber(rawEntry.coins) ? Math.max(0, rawEntry.coins) : 0;
+          if (count > 0) state.telemetry.giftBreakdown[name.slice(0, 64)] = { count, coins };
+        }
+      }
       if (Array.isArray(telemetry.wsLog)) {
         state.telemetry.wsLog = telemetry.wsLog
+          .filter((entry): entry is string => typeof entry === 'string')
+          .slice(0, 40);
+      }
+      for (const key of [
+        'roundCount', 'totalRoundDurationSec', 'longestRoundSec',
+        'runtimeErrorCount', 'persistenceErrorCount', 'websocketDisconnectCount',
+      ] as const) {
+        if (finiteNumber(telemetry[key])) state.telemetry[key] = Math.max(0, telemetry[key]);
+      }
+      if (Array.isArray(telemetry.errorLog)) {
+        state.telemetry.errorLog = telemetry.errorLog
           .filter((entry): entry is string => typeof entry === 'string')
           .slice(0, 40);
       }
@@ -1221,6 +1272,10 @@ export function loadPersistentState(): void {
 
     resetIfNeeded();
   } catch {
-    // Estado corrupto: arrancar limpio
+    state.telemetry.persistenceErrorCount += 1;
+    state.telemetry.errorLog.unshift(`[${new Date().toLocaleTimeString('es-MX', { hour12: false })}] Persistencia: estado anterior no válido`);
+    state.telemetry.errorLog = state.telemetry.errorLog.slice(0, 40);
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* noop */ }
+    resetIfNeeded();
   }
 }

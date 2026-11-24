@@ -22,6 +22,7 @@ import { renderTeamFlagHtml } from './ui/FlagRenderer';
 import { NotificationDock } from './ui/NotificationDock';
 import { consumeTapRewards } from './utils/tapRewards';
 import { ArenaRuntime } from './app/ArenaRuntime';
+import { installErrorMonitoring } from './monitoring/ErrorMonitor';
 
 const $ = (id: string) => document.getElementById(id)!;
 const notificationDock = new NotificationDock($);
@@ -698,7 +699,12 @@ initInputShortcuts({
   manualTestGift,
 });
 
+let previousWsStatus: 'connected' | 'reconnecting' | 'offline' | null = null;
 bus.on('tikfinity:status', ({ status, detail }) => {
+  if (status === 'reconnecting' && previousWsStatus === 'connected') {
+    state.telemetry.websocketDisconnectCount += 1;
+  }
+  previousWsStatus = status;
   if (status === 'connected') {
     $('wsTopDot').style.background = '#34D399'; $('wsTopText').textContent = 'TikFinity ON';
     $('wsStatus').textContent = 'Conectado'; $('btnWsConnect').textContent = 'Desconectar';
@@ -727,6 +733,7 @@ synth.init();
 synth.applyMusicMode();
 announceActiveBiome();
 logWsEvent('Tactical Arena V2.3 listo · Fase A activa (Liga / Records).');
+installErrorMonitoring();
 const arenaRuntime = new ArenaRuntime({
   elixir,
   simulation: sim,

@@ -389,6 +389,11 @@
           <div class="kpi-box"><div class="kpi-label">Follows</div><div id="telFollows" class="kpi-val tabular" style="color:#6EE7B7;">0</div></div>
           <div class="kpi-box"><div class="kpi-label">Shares</div><div id="telShares" class="kpi-val tabular" style="color:#7DD3FC;">0</div></div>
           <div class="kpi-box"><div class="kpi-label">Avatares LRU</div><div id="telCache" class="kpi-val tabular">0/150</div></div>
+          <div class="kpi-box"><div class="kpi-label">Rondas</div><div id="telRoundCount" class="kpi-val tabular">0</div></div>
+          <div class="kpi-box"><div class="kpi-label">Duración media</div><div id="telAvgRound" class="kpi-val tabular">00:00:00</div></div>
+          <div class="kpi-box"><div class="kpi-label">Ronda más larga</div><div id="telLongestRound" class="kpi-val tabular">00:00:00</div></div>
+          <div class="kpi-box"><div class="kpi-label">Errores runtime</div><div id="telRuntimeErrors" class="kpi-val tabular">0</div></div>
+          <div class="kpi-box"><div class="kpi-label">Errores persistencia</div><div id="telPersistenceErrors" class="kpi-val tabular">0</div></div>
         </div>
 
         <div class="section-card">
@@ -399,6 +404,10 @@
         <div class="section-card">
           <div class="section-title"><span>Log WebSocket TikFinity</span></div>
           <div id="telWsLog" style="font-family:monospace;font-size:9px;color:#94A3B8;max-height:110px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;"></div>
+        </div>
+        <div class="section-card">
+          <div class="section-title"><span>Errores de calidad y persistencia</span></div>
+          <div id="telErrorLog" style="font-family:monospace;font-size:9px;color:#FCA5A5;max-height:110px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;"></div>
         </div>
 
         <div class="grid-3">

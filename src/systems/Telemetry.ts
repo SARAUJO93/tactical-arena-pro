@@ -55,6 +55,15 @@ export function renderTelemetry(): void {
   $('telFollows').textContent = state.telemetry.totalFollows.toLocaleString();
   $('telShares').textContent = state.telemetry.totalShares.toLocaleString();
   $('telCache').textContent = `${getAvatarCacheSize()}/${MAX_AVATAR_CACHE}`;
+  const roundCount = state.telemetry.roundCount;
+  const averageRoundSec = roundCount > 0
+    ? Math.round(state.telemetry.totalRoundDurationSec / roundCount)
+    : 0;
+  $('telRoundCount').textContent = String(roundCount);
+  $('telAvgRound').textContent = formatDuration(averageRoundSec * 1000);
+  $('telLongestRound').textContent = formatDuration(state.telemetry.longestRoundSec * 1000);
+  $('telRuntimeErrors').textContent = String(state.telemetry.runtimeErrorCount);
+  $('telPersistenceErrors').textContent = String(state.telemetry.persistenceErrorCount);
 
   const top = Object.entries(state.telemetry.giftBreakdown)
     .sort((a, b) => b[1].coins - a[1].coins)
@@ -72,6 +81,9 @@ export function renderTelemetry(): void {
   $('telWsLog').innerHTML = state.telemetry.wsLog.length
     ? state.telemetry.wsLog.map((l) => `<div>${escapeHtml(l)}</div>`).join('')
     : `<div>[Sistema] Listo.</div>`;
+  $('telErrorLog').innerHTML = state.telemetry.errorLog.length
+    ? state.telemetry.errorLog.map((l) => `<div>${escapeHtml(l)}</div>`).join('')
+    : `<div>[Sistema] Sin errores registrados.</div>`;
 }
 
 export function downloadFile(name: string, content: string, mime: string): void {

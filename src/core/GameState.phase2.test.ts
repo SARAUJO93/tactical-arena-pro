@@ -5,6 +5,8 @@ import {
   finalizeRound,
   loadPersistentState,
   makeBaseState,
+  PERSISTENCE_SCHEMA_VERSION,
+  STORAGE_KEY,
   recordGift,
   resetSession,
   saveNow,
@@ -192,5 +194,18 @@ describe('Fase 2 - ciclo de round', () => {
     expect(state.frenzyGoalLikes).toBe(200);
     expect(state.aiDirectorEnabled).toBe(false);
     expect(state.playerRecords['@fan'].lifetime.coins).toBe(100);
+  });
+
+  it('incluye una versión de esquema y rechaza esquemas futuros', () => {
+    saveNow();
+    const persisted = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    expect(persisted.schemaVersion).toBe(PERSISTENCE_SCHEMA_VERSION);
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      schemaVersion: PERSISTENCE_SCHEMA_VERSION + 1,
+    }));
+    loadPersistentState();
+
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 });

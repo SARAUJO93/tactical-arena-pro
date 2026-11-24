@@ -1,0 +1,50 @@
+# Tactical Arena Pro
+
+Arena interactiva para transmisiones de TikTok Live basada en TypeScript y Vite.
+
+## Requisitos
+
+- Node.js 20.19 o superior
+- npm
+- Navegador moderno
+- Para integración en vivo: TikFinity y un WebSocket local
+
+## Instalación
+
+```powershell
+npm ci
+npm run dev
+```
+
+La aplicación estará disponible en `http://localhost:5173`.
+
+## Validación
+
+```powershell
+npm run lint
+npm test
+npm run build
+npm run test:e2e
+```
+
+## Uso en transmisión
+
+1. Ejecuta `npm run dev` o sirve `dist/index.html`.
+2. Abre el panel de ajustes y configura TikFinity.
+3. Usa el modo Demo para validar escenas antes de recibir interacción real.
+4. Conserva el modo seguro de zonas TikTok activado mientras pruebas overlays.
+
+Consulta [TIKFINITY.md](TIKFINITY.md) para la conexión WebSocket y el formato de eventos.
+
+## Persistencia
+
+La aplicación guarda su liga, jugadores, rondas y configuración en `localStorage`.
+El esquema actual usa `PERSISTENCE_SCHEMA_VERSION` y incluye `schemaVersion` en el estado persistido.
+Los datos de esquemas incompatibles se rechazan y se conserva la aplicación funcional.
+
+## Operación
+
+- La telemetría muestra duración, monedas, interacción, rondas y errores.
+- Los errores de JavaScript y promesas no controladas quedan registrados localmente.
+- Los fallos de persistencia y desconexiones WebSocket quedan visibles en la telemetría.
+- El build usa `vite-plugin-singlefile`, por lo que `dist/index.html` contiene la aplicación portable.
