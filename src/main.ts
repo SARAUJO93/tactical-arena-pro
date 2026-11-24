@@ -21,6 +21,7 @@ import { cycleNextBiome, getActiveBiome, getBiomeProgressText } from './config/b
 import { renderTeamFlagHtml } from './ui/FlagRenderer';
 import { NotificationDock } from './ui/NotificationDock';
 import { consumeTapRewards } from './utils/tapRewards';
+import { ArenaRuntime } from './app/ArenaRuntime';
 
 const $ = (id: string) => document.getElementById(id)!;
 const notificationDock = new NotificationDock($);
@@ -592,8 +593,6 @@ function resetRound(): void {
 
   lastElixirHud.A.valText = ''; lastElixirHud.A.queueLen = -1;
   lastElixirHud.B.valText = ''; lastElixirHud.B.queueLen = -1;
-  clockAccumSec = 0;
-  demoAccumSec = 0;
 
   sim.clearEntities();
   elixir.resetRound();
@@ -713,94 +712,6 @@ bus.on('tikfinity:status', ({ status, detail }) => {
   }
 });
 
-// =========================================================================
-// TICK DE 1s, RESET DIARIO/TEMPORADA Y DEMO
-// =========================================================================
-const REAL_INTERACTION_GRACE_MS = 12000;
-const DEMO_USERS: { user: string; team: TeamId }[] = [
-  { user: '@CarlosMX', team: 'A' }, { user: '@Sofia_99', team: 'A' },
-  { user: '@MateoAR', team: 'B' }, { user: '@KiraLive', team: 'B' },
-];
-
-function tickOneSecond(): void {
-  resetIfNeeded();
-
-  if (state.telemetryOpen) renderTelemetry();
-  if (!state.roundActive) return;
-
-  if (!state.suddenDeathActive) {
-    state.roundTimeLeft = Math.max(0, state.roundTimeLeft - 1);
-    if (state.roundTimeLeft === 0) activateSuddenDeath();
-  }
-  if (state.frenzyActive) {
-    state.frenzyTimeLeft = Math.max(0, state.frenzyTimeLeft - 1);
-    if (state.frenzyTimeLeft === 0) {
-      state.frenzyActive = false;
-      $('frenzyVignette').classList.remove('active');
-    }
-    updateFrenzyGaugeUI();
-  }
-  syncTimerPill();
-
-  (['A', 'B'] as TeamId[]).forEach((t) => {
-    const b = t === 'A' ? state.teamA : state.teamB;
-    const sBadge = $(`shieldBadge${t}`), eBadge = $(`empBadge${t}`), card = $(`cardBase${t}`);
-    if (b.shieldTimer > 0 && b.shieldHp > 0) { b.shieldTimer--; sBadge.textContent = `🛡️ ${b.shieldTimer}s`; sBadge.classList.remove('hidden'); }
-    else { b.shieldHp = 0; sBadge.classList.add('hidden'); }
-    if (b.empTimer > 0) { b.empTimer--; eBadge.textContent = `⚡ EMP ${b.empTimer}s`; eBadge.classList.remove('hidden'); card.classList.add('emp-hit'); }
-    else { eBadge.classList.add('hidden'); card.classList.remove('emp-hit'); }
-  });
-}
-
-function tickDemoStep(): void {
-  if (!state.roundActive || !state.demoMode || state.takeoverActive) return;
-  if (Date.now() - state.lastRealInteractionAt < REAL_INTERACTION_GRACE_MS) return;
-
-  const v = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
-  const r = Math.random();
-  if (r < 0.35) bus.emit('game:tap', { user: v.user, count: 15, avatarUrl: '', forcedTeam: v.team, isDemo: true });
-  else if (r < 0.65) bus.emit('game:gift', { team: v.team, tier: 1, delta: 2, user: v.user, giftName: 'Rose', avatarUrl: '', coins: 1, isDemo: true });
-  else if (r < 0.80) bus.emit('game:gift', { team: v.team, tier: 2, delta: 1, user: v.user, giftName: 'Dona', avatarUrl: '', coins: 30, isDemo: true });
-  else if (r < 0.90) bus.emit('game:gift', { team: v.team, tier: 3, delta: 1, user: v.user, giftName: 'Perfume', avatarUrl: '', coins: 20, isDemo: true });
-  else if (r < 0.95) bus.emit('game:gift', { team: v.team, tier: 6, delta: 1, user: v.user, giftName: 'EMP', avatarUrl: '', coins: 100, isDemo: true });
-  else bus.emit('game:gift', { team: v.team, tier: 7, delta: 1, user: v.user, giftName: 'Hack', avatarUrl: '', coins: 99, isDemo: true });
-}
-
-let lastTime = performance.now();
-let clockAccumSec = 0;
-let demoAccumSec = 0;
-
-function loop(now: number): void {
-  const dtSec = Math.min(0.05, Math.max(0.008, (now - lastTime) / 1000));
-  lastTime = now;
-
-  clockAccumSec += dtSec;
-  if (clockAccumSec >= 1) {
-    clockAccumSec -= 1;
-    tickOneSecond();
-  }
-
-  demoAccumSec += dtSec;
-  if (demoAccumSec >= 1.1) {
-    demoAccumSec -= 1.1;
-    tickDemoStep();
-  }
-
-  elixir.update(dtSec, {
-    roundActive: state.roundActive,
-    roundTimeLeft: state.roundTimeLeft,
-    suddenDeathActive: state.suddenDeathActive,
-    frenzyActive: state.frenzyActive,
-    timeScale: state.timeScale,
-    aiDirectorEnabled: state.aiDirectorEnabled,
-    unitCountByTeam: (t) => sim.getUnitCount(t),
-    jetCountByTeam: (t) => sim.getJetCount(t),
-  });
-  sim.update(dtSec * 60);
-  sim.render();
-  requestAnimationFrame(loop);
-}
-
 // Arranque
 window.addEventListener('pointerdown', () => synth.unlock(), { passive: true });
 window.addEventListener('beforeunload', saveNow);
@@ -816,4 +727,11 @@ synth.init();
 synth.applyMusicMode();
 announceActiveBiome();
 logWsEvent('Tactical Arena V2.3 listo · Fase A activa (Liga / Records).');
-requestAnimationFrame(loop);
+const arenaRuntime = new ArenaRuntime({
+  elixir,
+  simulation: sim,
+  activateSuddenDeath,
+  updateFrenzyGaugeUI,
+  syncTimerPill,
+});
+arenaRuntime.start();

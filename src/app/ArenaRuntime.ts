@@ -1,0 +1,149 @@
+import { resetIfNeeded, state } from '../core/GameState';
+import { TeamId, bus } from '../core/EventBus';
+import { Simulation } from '../core/Simulation';
+import { ElixirSystem } from '../systems/ElixirSystem';
+import { renderTelemetry } from '../systems/Telemetry';
+
+const REAL_INTERACTION_GRACE_MS = 12000;
+
+export const DEMO_USERS: { user: string; team: TeamId }[] = [
+  { user: '@CarlosMX', team: 'A' }, { user: '@Sofia_99', team: 'A' },
+  { user: '@MateoAR', team: 'B' }, { user: '@KiraLive', team: 'B' },
+];
+
+export function consumeAccumulator(
+  accumulator: number,
+  deltaSeconds: number,
+  intervalSeconds: number
+): { accumulator: number; elapsedIntervals: number } {
+  const safeDelta = Math.max(0, deltaSeconds);
+  const next = accumulator + safeDelta;
+  if (next < intervalSeconds) return { accumulator: next, elapsedIntervals: 0 };
+  const elapsedIntervals = Math.floor(next / intervalSeconds);
+  return {
+    accumulator: next - elapsedIntervals * intervalSeconds,
+    elapsedIntervals,
+  };
+}
+
+interface ArenaRuntimeDependencies {
+  elixir: ElixirSystem;
+  simulation: Simulation;
+  activateSuddenDeath: () => void;
+  updateFrenzyGaugeUI: () => void;
+  syncTimerPill: () => void;
+}
+
+export class ArenaRuntime {
+  private lastTime = 0;
+  private clockAccumulator = 0;
+  private demoAccumulator = 0;
+  private frameId: number | null = null;
+  private stopped = false;
+
+  constructor(private readonly deps: ArenaRuntimeDependencies) {}
+
+  start(): void {
+    if (this.frameId !== null) return;
+    this.stopped = false;
+    this.lastTime = performance.now();
+    this.frameId = requestAnimationFrame((now) => this.loop(now));
+  }
+
+  stop(): void {
+    this.stopped = true;
+    if (this.frameId !== null) cancelAnimationFrame(this.frameId);
+    this.frameId = null;
+  }
+
+  tickOneSecond(): void {
+    resetIfNeeded();
+
+    if (state.telemetryOpen) renderTelemetry();
+    if (!state.roundActive) return;
+
+    if (!state.suddenDeathActive) {
+      state.roundTimeLeft = Math.max(0, state.roundTimeLeft - 1);
+      if (state.roundTimeLeft === 0) this.deps.activateSuddenDeath();
+    }
+    if (state.frenzyActive) {
+      state.frenzyTimeLeft = Math.max(0, state.frenzyTimeLeft - 1);
+      if (state.frenzyTimeLeft === 0) {
+        state.frenzyActive = false;
+        document.getElementById('frenzyVignette')?.classList.remove('active');
+      }
+      this.deps.updateFrenzyGaugeUI();
+    }
+    this.deps.syncTimerPill();
+
+    (['A', 'B'] as TeamId[]).forEach((team) => {
+      const base = team === 'A' ? state.teamA : state.teamB;
+      const shieldBadge = document.getElementById(`shieldBadge${team}`);
+      const empBadge = document.getElementById(`empBadge${team}`);
+      const card = document.getElementById(`cardBase${team}`);
+      if (base.shieldTimer > 0 && base.shieldHp > 0) {
+        base.shieldTimer--;
+        if (shieldBadge) {
+          shieldBadge.textContent = `🛡️ ${base.shieldTimer}s`;
+          shieldBadge.classList.remove('hidden');
+        }
+      } else {
+        base.shieldHp = 0;
+        shieldBadge?.classList.add('hidden');
+      }
+      if (base.empTimer > 0) {
+        base.empTimer--;
+        if (empBadge) {
+          empBadge.textContent = `⚡ EMP ${base.empTimer}s`;
+          empBadge.classList.remove('hidden');
+        }
+        card?.classList.add('emp-hit');
+      } else {
+        empBadge?.classList.add('hidden');
+        card?.classList.remove('emp-hit');
+      }
+    });
+  }
+
+  tickDemoStep(random = Math.random): void {
+    if (!state.roundActive || !state.demoMode || state.takeoverActive) return;
+    if (Date.now() - state.lastRealInteractionAt < REAL_INTERACTION_GRACE_MS) return;
+
+    const viewer = DEMO_USERS[Math.floor(random() * DEMO_USERS.length)];
+    const roll = random();
+    if (roll < 0.35) bus.emit('game:tap', { user: viewer.user, count: 15, avatarUrl: '', forcedTeam: viewer.team, isDemo: true });
+    else if (roll < 0.65) bus.emit('game:gift', { team: viewer.team, tier: 1, delta: 2, user: viewer.user, giftName: 'Rose', avatarUrl: '', coins: 1, isDemo: true });
+    else if (roll < 0.80) bus.emit('game:gift', { team: viewer.team, tier: 2, delta: 1, user: viewer.user, giftName: 'Dona', avatarUrl: '', coins: 30, isDemo: true });
+    else if (roll < 0.90) bus.emit('game:gift', { team: viewer.team, tier: 3, delta: 1, user: viewer.user, giftName: 'Perfume', avatarUrl: '', coins: 20, isDemo: true });
+    else if (roll < 0.95) bus.emit('game:gift', { team: viewer.team, tier: 6, delta: 1, user: viewer.user, giftName: 'EMP', avatarUrl: '', coins: 100, isDemo: true });
+    else bus.emit('game:gift', { team: viewer.team, tier: 7, delta: 1, user: viewer.user, giftName: 'Hack', avatarUrl: '', coins: 99, isDemo: true });
+  }
+
+  private loop(now: number): void {
+    if (this.stopped) return;
+    const dtSec = Math.min(0.05, Math.max(0.008, (now - this.lastTime) / 1000));
+    this.lastTime = now;
+
+    const clock = consumeAccumulator(this.clockAccumulator, dtSec, 1);
+    this.clockAccumulator = clock.accumulator;
+    for (let i = 0; i < clock.elapsedIntervals; i++) this.tickOneSecond();
+
+    const demo = consumeAccumulator(this.demoAccumulator, dtSec, 1.1);
+    this.demoAccumulator = demo.accumulator;
+    for (let i = 0; i < demo.elapsedIntervals; i++) this.tickDemoStep();
+
+    this.deps.elixir.update(dtSec, {
+      roundActive: state.roundActive,
+      roundTimeLeft: state.roundTimeLeft,
+      suddenDeathActive: state.suddenDeathActive,
+      frenzyActive: state.frenzyActive,
+      timeScale: state.timeScale,
+      aiDirectorEnabled: state.aiDirectorEnabled,
+      unitCountByTeam: (team) => this.deps.simulation.getUnitCount(team),
+      jetCountByTeam: (team) => this.deps.simulation.getJetCount(team),
+    });
+    this.deps.simulation.update(dtSec * 60);
+    this.deps.simulation.render();
+    this.frameId = requestAnimationFrame((next) => this.loop(next));
+  }
+}
