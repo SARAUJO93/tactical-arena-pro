@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased - Cobertura operativa
+
+- Added reconnect/recovery coverage for TikFinity WebSocket sessions.
+- Added persistence reload and complete victory smoke coverage.
+- Added an optional soak test with configurable duration.
+- Kept long soak tests outside the normal CI smoke suite.
+
 ## 2.4.1 - 2026-11-24
 
 - Unified the visible application and telemetry version.

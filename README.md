@@ -27,6 +27,13 @@ npm run build
 npm run test:e2e
 ```
 
+Para una prueba de estabilidad larga:
+
+```powershell
+$env:SOAK_DURATION_SECONDS="1800"
+npm run test:soak
+```
+
 ## Uso en transmisión
 
 1. Ejecuta `npm run dev` o sirve `dist/index.html`.

@@ -76,3 +76,54 @@ test('puede finalizar una ronda y mostrar la victoria', async ({ page }) => {
   await expect(page.locator('#victoryOverlay')).not.toHaveClass(/hidden/);
   await expect(page.locator('#vicName')).toBeVisible();
 });
+
+test('muestra reconexion y recuperacion cuando TikFinity cae', async ({ page }) => {
+  await page.addInitScript(() => {
+    class MockWebSocket {
+      static instances: MockWebSocket[] = [];
+      onopen: (() => void) | null = null;
+      onclose: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      onmessage: ((event: { data: string }) => void) | null = null;
+
+      constructor(public url: string) {
+        MockWebSocket.instances.push(this);
+        setTimeout(() => this.onopen?.(), 10);
+      }
+
+      close(): void {
+        this.onclose?.();
+      }
+
+      open(): void {
+        this.onopen?.();
+      }
+
+      drop(): void {
+        this.onclose?.();
+      }
+
+      send(): void {}
+    }
+
+    const testWindow = window as unknown as { MockWebSocket: typeof MockWebSocket };
+    testWindow.MockWebSocket = MockWebSocket;
+    window.WebSocket = MockWebSocket as unknown as typeof WebSocket;
+  });
+
+  await page.reload();
+  await page.locator('#btnOpenPanel').click();
+  await page.locator('#wsUrl').fill('ws://localhost:21213/');
+  await page.locator('#btnWsConnect').click();
+
+  await expect(page.locator('#wsStatus')).toHaveText('Conectado');
+
+  await page.evaluate(() => {
+    const testWindow = window as unknown as {
+      MockWebSocket: { instances: Array<{ open: () => void; drop: () => void }> };
+    };
+    testWindow.MockWebSocket.instances[0].drop();
+  });
+  await page.waitForTimeout(1200);
+  await expect(page.locator('#wsStatus')).toHaveText('Conectado');
+});

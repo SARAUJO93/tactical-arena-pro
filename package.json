@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "test": "vitest run src",
     "lint": "eslint src",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test tests/e2e/app.smoke.spec.ts",
+    "test:soak": "playwright test tests/e2e/app.soak.spec.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
