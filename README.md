@@ -41,6 +41,8 @@ Consulta [TIKFINITY.md](TIKFINITY.md) para la conexión WebSocket y el formato d
 La aplicación guarda su liga, jugadores, rondas y configuración en `localStorage`.
 El esquema actual usa `PERSISTENCE_SCHEMA_VERSION` y incluye `schemaVersion` en el estado persistido.
 Los datos de esquemas incompatibles se rechazan y se conserva la aplicación funcional.
+Desde Ajustes puedes exportar una copia completa del estado o importar un archivo JSON previamente exportado.
+Los estados corruptos se conservan bajo una clave `_corrupt_*` para diagnóstico.
 
 ## Operación
 
@@ -48,3 +50,8 @@ Los datos de esquemas incompatibles se rechazan y se conserva la aplicación fun
 - Los errores de JavaScript y promesas no controladas quedan registrados localmente.
 - Los fallos de persistencia y desconexiones WebSocket quedan visibles en la telemetría.
 - El build usa `vite-plugin-singlefile`, por lo que `dist/index.html` contiene la aplicación portable.
+
+## Releases
+
+Las etiquetas `v*` generan un artefacto HTML portable y un archivo `SHA256SUMS.txt`.
+La publicación requiere aprobación del environment `production` configurado en GitHub Actions.

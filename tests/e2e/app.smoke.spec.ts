@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('carga el arena y muestra los controles principales', async ({ page }) => {
-  await expect(page).toHaveTitle(/TACTICAL ARENA V2\.3/i);
+  await expect(page).toHaveTitle(/TACTICAL ARENA V2\.4\.1/i);
   await expect(page.locator('#arenaCanvas')).toBeVisible();
   await expect(page.locator('#stageFrame')).toBeVisible();
   await expect(page.locator('#timerText')).toHaveText(/^\d{2}:\d{2}$/);
@@ -54,4 +54,25 @@ test('activa safe zones y notifica el modo', async ({ page }) => {
 
   await page.keyboard.press('s');
   await expect(page.locator('#safeZoneGuide')).toHaveClass(/hidden/);
+});
+
+test('persiste cambios de configuración después de recargar', async ({ page }) => {
+  await page.locator('#btnOpenPanel').click();
+  const threshold = page.locator('#sliderPersonalTap');
+  await threshold.evaluate((element: HTMLInputElement) => {
+    element.value = '30';
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await page.reload();
+  await page.locator('#btnOpenPanel').click();
+  await expect(page.locator('#sliderPersonalTap')).toHaveValue('30');
+});
+
+test('puede finalizar una ronda y mostrar la victoria', async ({ page }) => {
+  await page.evaluate(() => {
+    const arena = window as unknown as { triggerVictory?: (team: 'A' | 'B') => void };
+    arena.triggerVictory?.('A');
+  });
+  await expect(page.locator('#victoryOverlay')).not.toHaveClass(/hidden/);
+  await expect(page.locator('#vicName')).toBeVisible();
 });

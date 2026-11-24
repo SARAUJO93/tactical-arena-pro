@@ -932,6 +932,32 @@ export function saveNow(): void {
   }
 }
 
+export function exportPersistentState(): string {
+  saveNow();
+  return localStorage.getItem(STORAGE_KEY) ?? '';
+}
+
+export function importPersistentState(raw: string): boolean {
+  if (!raw.trim()) return false;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
+    const persisted = parsed as Record<string, unknown>;
+    const version = persisted.schemaVersion;
+    if (typeof version === 'number' && version > PERSISTENCE_SCHEMA_VERSION) return false;
+
+    const existing = localStorage.getItem(STORAGE_KEY);
+    if (existing) {
+      try { localStorage.setItem(`${STORAGE_KEY}_backup_${Date.now()}`, existing); } catch { /* noop */ }
+    }
+    localStorage.setItem(STORAGE_KEY, raw);
+    loadPersistentState();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
@@ -1275,7 +1301,11 @@ export function loadPersistentState(): void {
     state.telemetry.persistenceErrorCount += 1;
     state.telemetry.errorLog.unshift(`[${new Date().toLocaleTimeString('es-MX', { hour12: false })}] Persistencia: estado anterior no válido`);
     state.telemetry.errorLog = state.telemetry.errorLog.slice(0, 40);
-    try { localStorage.removeItem(STORAGE_KEY); } catch { /* noop */ }
+    try {
+      const corruptRaw = localStorage.getItem(STORAGE_KEY);
+      if (corruptRaw) localStorage.setItem(`${STORAGE_KEY}_corrupt_${Date.now()}`, corruptRaw);
+      localStorage.removeItem(STORAGE_KEY);
+    } catch { /* noop */ }
     resetIfNeeded();
   }
 }

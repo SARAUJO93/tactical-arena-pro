@@ -667,6 +667,7 @@ const triggerMeteorShower = (reason = 'Manual') => bus.emit('action:instant', { 
 const w = window as unknown as Record<string, unknown>;
 w.manualTestGift = manualTestGift;
 w.activateFrenzy = activateFrenzy;
+w.triggerVictory = triggerVictory;
 w.simulateFollowEvent = simulateFollow;
 w.simulateShareEvent = simulateShare;
 w.triggerMeteorShower = triggerMeteorShower;
@@ -732,7 +733,7 @@ elixir.resetRound();
 synth.init();
 synth.applyMusicMode();
 announceActiveBiome();
-logWsEvent('Tactical Arena V2.3 listo · Fase A activa (Liga / Records).');
+logWsEvent('Tactical Arena V2.4.1 listo · Fase A activa (Liga / Records).');
 installErrorMonitoring();
 const arenaRuntime = new ArenaRuntime({
   elixir,

@@ -2,6 +2,7 @@ import { TeamId } from '../core/EventBus';
 import {
   LIGAMX_ROSTER, makeBaseState, savePersistentState, state, TeamPreset, WORLD_ROSTER,
   getStandings, getTopPlayers, getTopGifters, getRecentRounds,
+  exportPersistentState, importPersistentState,
 } from '../core/GameState';
 import { SynthEngine } from '../audio/SynthEngine';
 import { TikFinityClient } from '../network/TikFinityClient';
@@ -508,6 +509,28 @@ export class SettingsPanel {
     $('btnResetRound').addEventListener('click', () => this.deps.resetRound());
     $('btnResetSession').addEventListener('click', () => this.deps.resetSession());
     $('btnTelReset').addEventListener('click', () => this.deps.resetSession());
+    $('btnExportState').addEventListener('click', () => {
+      const raw = exportPersistentState();
+      if (!raw) return;
+      downloadFile(`tactical_arena_state_v2_4_1_${Date.now()}.json`, raw, 'application/json');
+    });
+    $('btnImportState').addEventListener('click', () => {
+      ($('inImportState') as HTMLInputElement).click();
+    });
+    $('inImportState').addEventListener('change', (event) => {
+      const file = (event.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const imported = importPersistentState(String(reader.result || ''));
+        if (!imported) {
+          window.alert('No se pudo importar el estado: archivo inválido o versión incompatible.');
+          return;
+        }
+        window.location.reload();
+      };
+      reader.readAsText(file);
+    });
 
     // Música
     $('selMusicMode').addEventListener('change', (e) => {
@@ -629,7 +652,7 @@ export class SettingsPanel {
           recentRounds: state.roundLogs.slice(0, 50),
         },
       };
-      downloadFile(`tactical_v2_3_telemetry_${Date.now()}.json`, JSON.stringify(payload, null, 2), 'application/json');
+      downloadFile(`tactical_v2_4_1_telemetry_${Date.now()}.json`, JSON.stringify(payload, null, 2), 'application/json');
     });
     $('btnExportCsv').addEventListener('click', () => {
       const rows: [string, string | number][] = [
@@ -643,7 +666,7 @@ export class SettingsPanel {
       Object.entries(state.telemetry.giftBreakdown).forEach(([n, inf]) => {
         rows.push([n, `${inf.count} (${inf.coins} coins)`]);
       });
-      downloadFile(`tactical_v2_3_telemetry_${Date.now()}.csv`, rows.map((r) => r.join(',')).join('\n'), 'text/csv;charset=utf-8;');
+      downloadFile(`tactical_v2_4_1_telemetry_${Date.now()}.csv`, rows.map((r) => r.join(',')).join('\n'), 'text/csv;charset=utf-8;');
     });
   }
 }

@@ -7,6 +7,8 @@ import {
   makeBaseState,
   PERSISTENCE_SCHEMA_VERSION,
   STORAGE_KEY,
+  exportPersistentState,
+  importPersistentState,
   recordGift,
   resetSession,
   saveNow,
@@ -207,5 +209,17 @@ describe('Fase 2 - ciclo de round', () => {
     loadPersistentState();
 
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+  });
+
+  it('exporta e importa el estado persistido con respaldo', () => {
+    state.personalTapThreshold = 30;
+    const exported = exportPersistentState();
+    expect(JSON.parse(exported).schemaVersion).toBe(PERSISTENCE_SCHEMA_VERSION);
+
+    state.personalTapThreshold = 15;
+    expect(importPersistentState(exported)).toBe(true);
+    expect(state.personalTapThreshold).toBe(30);
+    expect([...Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i))]
+      .some((key) => key?.startsWith(`${STORAGE_KEY}_backup_`))).toBe(true);
   });
 });
