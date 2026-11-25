@@ -18,6 +18,9 @@ for (const [source, name] of [
   ['TIKFINITY.md', 'TIKFINITY.md'],
   ['CHANGELOG.md', 'CHANGELOG.md'],
   ['LICENSE.md', 'LICENSE.md'],
+  ['COMMERCIAL_RUNBOOK.md', 'COMMERCIAL_RUNBOOK.md'],
+  ['PILOT_CHECKLIST.md', 'PILOT_CHECKLIST.md'],
+  ['PERSISTENCE_POLICY.md', 'PERSISTENCE_POLICY.md'],
 ]) {
   await copyFile(new URL(`../${source}`, import.meta.url), new URL(name, releaseDir));
 }

@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.2.0 - 2026-11-24
+
+- Added a commercial transmission runbook and rollback procedure.
+- Added a persistence compatibility policy.
+- Added the `prelive` validation command.
+- Frozen the state-schema migration contract for production exports.
+- Added release documentation for operational handoff.
+
 ## 3.1.0 - 2026-11-24
 
 - Separated read-only build validation from release publication permissions.

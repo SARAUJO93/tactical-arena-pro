@@ -98,3 +98,10 @@ El collector escucha `http://127.0.0.1:8080/events` y guarda eventos agregados e
 `pilot-output/quality-events.ndjson`.
 
 Consulta [PILOT_CHECKLIST.md](PILOT_CHECKLIST.md) antes y después de una transmisión real.
+
+## Preparación comercial
+
+- Ejecuta `npm run prelive` antes de una transmisión pública.
+- Conserva el HTML anterior como punto de rollback.
+- Sigue [COMMERCIAL_RUNBOOK.md](COMMERCIAL_RUNBOOK.md).
+- Consulta [PERSISTENCE_POLICY.md](PERSISTENCE_POLICY.md) antes de modificar el esquema.

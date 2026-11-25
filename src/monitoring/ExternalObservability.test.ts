@@ -24,8 +24,8 @@ describe('ExternalObservability', () => {
   });
 
   it('incluye solo métricas agregadas y rendimiento', () => {
-    const payload = buildSanitizedPayload('3.1.0');
-    expect(payload.appVersion).toBe('3.1.0');
+    const payload = buildSanitizedPayload('3.2.0');
+    expect(payload.appVersion).toBe('3.2.0');
     expect(payload).toHaveProperty('quality.roundCount');
     expect(payload).toHaveProperty('performance.fps');
     expect(payload).not.toHaveProperty('user');

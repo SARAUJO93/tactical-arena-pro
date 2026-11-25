@@ -1,7 +1,7 @@
 {
   "name": "tactical-arena-pro",
   "private": true,
-  "version": "3.1.0",
+  "version": "3.2.0",
   "type": "module",
   "engines": {
     "node": ">=20.19.0"
@@ -18,7 +18,9 @@
     "release:notes": "node scripts/generate-release-notes.mjs",
     "package:release": "node scripts/package-release.mjs",
     "pilot:collector": "node scripts/collector.mjs",
-    "check:secrets": "node scripts/check-secrets.mjs"
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "check:persistence": "node scripts/check-persistence.mjs",
+    "prelive": "npm run check:secrets && npm run check:persistence && npm run lint && npm test && npm run build && npm run test:e2e"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

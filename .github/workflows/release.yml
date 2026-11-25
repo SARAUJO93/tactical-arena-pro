@@ -32,6 +32,9 @@ jobs:
       - name: Scan for exposed secrets
         run: npm run check:secrets
 
+      - name: Validate persistence contract
+        run: npm run check:persistence
+
       - name: Audit production dependencies
         run: npm audit --omit=dev
 
