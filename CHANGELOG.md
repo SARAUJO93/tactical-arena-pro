@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.6.0 - 2026-11-24
+
+- Added opt-in external quality observability.
+- Restricted external delivery to HTTPS or local HTTP endpoints.
+- Sanitized payloads to aggregated quality and error categories only.
+- Added persistence for observability consent and endpoint configuration.
+
 ## 2.5.0 - 2026-11-24
 
 - Added automated release tag and package version validation.

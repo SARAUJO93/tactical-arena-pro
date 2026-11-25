@@ -63,3 +63,11 @@ Los estados corruptos se conservan bajo una clave `_corrupt_*` para diagnóstico
 Las etiquetas `v*` generan un artefacto HTML portable y un archivo `SHA256SUMS.txt`.
 La publicación requiere aprobación del environment `production` configurado en GitHub Actions.
 Cada release incluye además un paquete `.tar.gz`, documentación, notas y `manifest.json`.
+
+## Observabilidad externa
+
+La observabilidad externa está desactivada por defecto. Desde Ajustes puede introducir
+una URL HTTPS o una URL HTTP local y aceptar el envío opt-in.
+Los payloads contienen versión, identificador aleatorio de sesión, métricas agregadas
+y categorías de error. No incluyen nombres de usuarios, chat, regalos, URLs de avatares
+ni mensajes completos.

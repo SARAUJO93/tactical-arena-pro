@@ -9,6 +9,7 @@ import { TikFinityClient } from '../network/TikFinityClient';
 import { downloadFile, renderTelemetry } from '../systems/Telemetry';
 import { escapeHtml, hexToRgba } from '../utils/helpers';
 import { getAvatar } from '../systems/AvatarCache';
+import { ExternalObservability, sanitizeExternalEndpoint } from '../monitoring/ExternalObservability';
 
 export interface SettingsPanelDeps {
   synth: SynthEngine;
@@ -21,6 +22,7 @@ export interface SettingsPanelDeps {
   resetRound: () => void;
   resetSession: () => void;
   simulateTap: (team: TeamId) => void;
+  externalObservability: ExternalObservability;
 }
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -129,6 +131,13 @@ export class SettingsPanel {
     $('btnTtsToggle').textContent = state.ttsEnabled ? '🗣️ TTS Interno: ON' : '🗣️ TTS Interno: OFF';
     $('btnAiToggle').textContent = state.aiDirectorEnabled ? '🤖 Director IA: ON' : '🤖 Director IA: OFF';
     $('btnTournamentToggle').textContent = state.tournamentMode ? 'Torneo: ON' : 'Torneo: OFF';
+    $('btnExternalTelemetry').textContent = state.externalObservabilityEnabled
+      ? '📡 Externa: ON'
+      : '📡 Externa: OFF';
+    $('btnExternalTelemetry').className = state.externalObservabilityEnabled
+      ? 'btn btn-emerald'
+      : 'btn';
+    ($('inExternalTelemetryUrl') as HTMLInputElement).value = state.externalObservabilityEndpoint;
 
     ($('selMusicMode') as HTMLSelectElement).value = state.musicMode;
     const volPct = Math.round(state.musicVolume * 100);
@@ -505,6 +514,31 @@ export class SettingsPanel {
       savePersistentState();
     });
 
+    $('btnExternalTelemetry').addEventListener('click', () => {
+      const endpointInput = $('inExternalTelemetryUrl') as HTMLInputElement;
+      const endpoint = sanitizeExternalEndpoint(endpointInput.value);
+      if (!state.externalObservabilityEnabled && !endpoint) {
+        window.alert('Introduce una URL HTTPS válida antes de activar observabilidad externa.');
+        return;
+      }
+      state.externalObservabilityEndpoint = endpoint || '';
+      state.externalObservabilityEnabled = !state.externalObservabilityEnabled;
+      this.syncControlButtons();
+      savePersistentState();
+      if (state.externalObservabilityEnabled) this.deps.externalObservability.start();
+      else this.deps.externalObservability.stop();
+    });
+    $('inExternalTelemetryUrl').addEventListener('change', (event) => {
+      const endpoint = sanitizeExternalEndpoint((event.target as HTMLInputElement).value);
+      if (!endpoint && (event.target as HTMLInputElement).value.trim()) {
+        window.alert('La URL debe usar HTTPS o HTTP local.');
+        (event.target as HTMLInputElement).value = '';
+        return;
+      }
+      state.externalObservabilityEndpoint = endpoint || '';
+      savePersistentState();
+    });
+
     $('btnTriggerSudden').addEventListener('click', () => this.deps.activateSuddenDeath());
     $('btnResetRound').addEventListener('click', () => this.deps.resetRound());
     $('btnResetSession').addEventListener('click', () => this.deps.resetSession());
@@ -512,7 +546,7 @@ export class SettingsPanel {
     $('btnExportState').addEventListener('click', () => {
       const raw = exportPersistentState();
       if (!raw) return;
-      downloadFile(`tactical_arena_state_v2_5_0_${Date.now()}.json`, raw, 'application/json');
+      downloadFile(`tactical_arena_state_v2_6_0_${Date.now()}.json`, raw, 'application/json');
     });
     $('btnImportState').addEventListener('click', () => {
       ($('inImportState') as HTMLInputElement).click();
@@ -652,7 +686,7 @@ export class SettingsPanel {
           recentRounds: state.roundLogs.slice(0, 50),
         },
       };
-      downloadFile(`tactical_v2_5_0_telemetry_${Date.now()}.json`, JSON.stringify(payload, null, 2), 'application/json');
+      downloadFile(`tactical_v2_6_0_telemetry_${Date.now()}.json`, JSON.stringify(payload, null, 2), 'application/json');
     });
     $('btnExportCsv').addEventListener('click', () => {
       const rows: [string, string | number][] = [
@@ -666,7 +700,7 @@ export class SettingsPanel {
       Object.entries(state.telemetry.giftBreakdown).forEach(([n, inf]) => {
         rows.push([n, `${inf.count} (${inf.coins} coins)`]);
       });
-      downloadFile(`tactical_v2_5_0_telemetry_${Date.now()}.csv`, rows.map((r) => r.join(',')).join('\n'), 'text/csv;charset=utf-8;');
+      downloadFile(`tactical_v2_6_0_telemetry_${Date.now()}.csv`, rows.map((r) => r.join(',')).join('\n'), 'text/csv;charset=utf-8;');
     });
   }
 }

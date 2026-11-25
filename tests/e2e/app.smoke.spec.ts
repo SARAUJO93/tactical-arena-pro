@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('carga el arena y muestra los controles principales', async ({ page }) => {
-  await expect(page).toHaveTitle(/TACTICAL ARENA V2\.5\.0/i);
+  await expect(page).toHaveTitle(/TACTICAL ARENA V2\.6\.0/i);
   await expect(page.locator('#arenaCanvas')).toBeVisible();
   await expect(page.locator('#stageFrame')).toBeVisible();
   await expect(page.locator('#timerText')).toHaveText(/^\d{2}:\d{2}$/);
@@ -126,4 +126,14 @@ test('muestra reconexion y recuperacion cuando TikFinity cae', async ({ page }) 
   });
   await page.waitForTimeout(1200);
   await expect(page.locator('#wsStatus')).toHaveText('Conectado');
+});
+
+test('mantiene desactivada la observabilidad externa por defecto', async ({ page }) => {
+  await page.locator('#btnOpenPanel').click();
+  await expect(page.locator('#btnExternalTelemetry')).toContainText(/OFF/);
+  await expect(page.locator('#inExternalTelemetryUrl')).toBeVisible();
+
+  await page.locator('#inExternalTelemetryUrl').fill('https://collector.example.com/events');
+  await page.locator('#btnExternalTelemetry').click();
+  await expect(page.locator('#btnExternalTelemetry')).toContainText(/ON/);
 });

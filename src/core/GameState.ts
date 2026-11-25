@@ -2,7 +2,7 @@ import { TeamId } from './EventBus';
 import { LruMap } from '../utils/helpers';
 
 export const STORAGE_KEY = 'tactical_arena_v2_3_league';
-export const PERSISTENCE_SCHEMA_VERSION = 1;
+export const PERSISTENCE_SCHEMA_VERSION = 2;
 export const MAX_BASE_HP = 3000;
 export const MAX_SIDE_DEFENSE_HP = 1350;
 export const METEOR_COIN_STEP = 500;
@@ -292,6 +292,8 @@ export const state = {
   timeScale: 1.0,
   takeoverActive: false,
   audioEnabled: true,
+  externalObservabilityEnabled: false,
+  externalObservabilityEndpoint: '',
   musicMode: 'starfox' as 'starfox' | 'pulse' | 'mp3' | 'off',
   musicVolume: 0.35,
   ttsEnabled: false,
@@ -908,6 +910,8 @@ export function saveNow(): void {
         unalignedTapSupportsUnderdog: state.unalignedTapSupportsUnderdog,
         aiDirectorEnabled: state.aiDirectorEnabled,
         audioEnabled: state.audioEnabled,
+        externalObservabilityEnabled: state.externalObservabilityEnabled,
+        externalObservabilityEndpoint: state.externalObservabilityEndpoint,
         musicMode: state.musicMode,
         musicVolume: state.musicVolume,
         ttsEnabled: state.ttsEnabled,
@@ -1238,6 +1242,10 @@ export function loadPersistentState(): void {
     if (typeof persisted.unalignedTapSupportsUnderdog === 'boolean') state.unalignedTapSupportsUnderdog = persisted.unalignedTapSupportsUnderdog;
     if (typeof persisted.aiDirectorEnabled === 'boolean') state.aiDirectorEnabled = persisted.aiDirectorEnabled;
     if (typeof persisted.audioEnabled === 'boolean') state.audioEnabled = persisted.audioEnabled;
+    if (typeof persisted.externalObservabilityEnabled === 'boolean') state.externalObservabilityEnabled = persisted.externalObservabilityEnabled;
+    if (typeof persisted.externalObservabilityEndpoint === 'string') {
+      state.externalObservabilityEndpoint = persisted.externalObservabilityEndpoint.slice(0, 500);
+    }
     if (persisted.musicMode === 'starfox' || persisted.musicMode === 'pulse' || persisted.musicMode === 'mp3' || persisted.musicMode === 'off') state.musicMode = persisted.musicMode;
     if (finiteNumber(persisted.musicVolume)) state.musicVolume = Math.max(0, Math.min(1, persisted.musicVolume));
     if (typeof persisted.ttsEnabled === 'boolean') state.ttsEnabled = persisted.ttsEnabled;

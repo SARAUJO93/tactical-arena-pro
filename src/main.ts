@@ -23,12 +23,14 @@ import { NotificationDock } from './ui/NotificationDock';
 import { consumeTapRewards } from './utils/tapRewards';
 import { ArenaRuntime } from './app/ArenaRuntime';
 import { installErrorMonitoring } from './monitoring/ErrorMonitor';
+import { ExternalObservability } from './monitoring/ExternalObservability';
 
 const $ = (id: string) => document.getElementById(id)!;
 const notificationDock = new NotificationDock($);
 const synth = new SynthEngine();
 const elixir = new ElixirSystem();
 const tikfinity = new TikFinityClient();
+const externalObservability = new ExternalObservability('2.6.0');
 
 const sim = new Simulation(
   $('arenaCanvas') as HTMLCanvasElement,
@@ -683,6 +685,7 @@ const settings = new SettingsPanel({
   resetRound,
   resetSession,
   simulateTap,
+  externalObservability,
 });
 
 initInputShortcuts({
@@ -723,6 +726,7 @@ bus.on('tikfinity:status', ({ status, detail }) => {
 window.addEventListener('pointerdown', () => synth.unlock(), { passive: true });
 window.addEventListener('beforeunload', saveNow);
 loadPersistentState();
+externalObservability.start();
 resetIfNeeded();
 settings.renderRosterChips();
 settings.renderGiftMapperTable();
@@ -733,7 +737,7 @@ elixir.resetRound();
 synth.init();
 synth.applyMusicMode();
 announceActiveBiome();
-logWsEvent('Tactical Arena V2.5.0 listo · Fase A activa (Liga / Records).');
+logWsEvent('Tactical Arena V2.6.0 listo · Fase A activa (Liga / Records).');
 installErrorMonitoring();
 const arenaRuntime = new ArenaRuntime({
   elixir,

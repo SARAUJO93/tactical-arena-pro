@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>TACTICAL ARENA V2.5.0 — Elixir, Biomas &amp; Audio Épico</title>
+  <title>TACTICAL ARENA V2.6.0 — Elixir, Biomas &amp; Audio Épico</title>
 </head>
 <body>
 
@@ -225,7 +225,7 @@
       <div id="controlPanel" class="modal-overlay hidden">
         <div class="modal-header">
           <div>
-            <div style="font-size:13px;font-weight:900;letter-spacing:0.05em;">TACTICAL ARENA V2.5.0</div>
+            <div style="font-size:13px;font-weight:900;letter-spacing:0.05em;">TACTICAL ARENA V2.6.0</div>
             <div style="font-size:9px;color:#94A3B8;margin-top:2px;">Elixir, Biomas &amp; Audio Épico · H: Ajustes · I: Telemetría · L: Liga · S: Safe · T/Y: Tap</div>
           </div>
           <button id="btnClosePanel" class="btn">Cerrar ✕</button>
@@ -243,6 +243,19 @@
           <button id="btnExportState" class="btn btn-primary">⬇ Exportar Estado</button>
           <button id="btnImportState" class="btn btn-amber">⬆ Importar Estado</button>
           <input id="inImportState" type="file" accept=".json,application/json" hidden />
+        </div>
+
+        <div class="section-card">
+          <div class="section-title">
+            <span style="color:#67E8F9;">Observabilidad externa opcional</span>
+            <button id="btnExternalTelemetry" class="btn">📡 Externa: OFF</button>
+          </div>
+          <input id="inExternalTelemetryUrl" class="inp" type="url"
+            placeholder="https://collector.example.com/tactical-arena"
+            style="width:100%;font-family:monospace;" />
+          <div style="margin-top:5px;font-size:8.5px;color:#94A3B8;">
+            Solo métricas agregadas de calidad. No se envían nombres, chat, regalos ni URLs personales.
+          </div>
         </div>
 
         <div class="section-card">
@@ -376,7 +389,7 @@
       <div id="telemetryModal" class="modal-overlay hidden">
         <div class="modal-header">
           <div>
-            <div style="font-size:13px;font-weight:900;letter-spacing:0.05em;">📊 TELEMETRÍA V2.5.0</div>
+            <div style="font-size:13px;font-weight:900;letter-spacing:0.05em;">📊 TELEMETRÍA V2.6.0</div>
             <div style="font-size:9px;color:#94A3B8;margin-top:2px;">Monetización, algoritmo y estabilidad WebSocket (solo eventos reales)</div>
           </div>
           <button id="btnCloseTelemetry" class="btn">Cerrar ✕</button>
