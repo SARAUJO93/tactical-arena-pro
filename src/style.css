@@ -386,6 +386,54 @@ html, body {
   background: rgba(251, 191, 36, 0.2); border: 1px solid rgba(251, 191, 36, 0.45); color: #FDE68A;
 }
 
+.faction-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 3px;
+  padding-top: 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.captain-badge {
+  font-size: 7.2px;
+  font-weight: 800;
+  color: #E2E8F0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 52%;
+}
+.faction-goal-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.faction-goal-track {
+  width: 54px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.72);
+  border: 1px solid rgba(103, 232, 249, 0.28);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.faction-goal-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #06B6D4 0%, #67E8F9 100%);
+  transition: width 0.2s ease-out;
+}
+.faction-goal-text {
+  font-size: 7px;
+  font-weight: 800;
+  color: #A5F3FC;
+  white-space: nowrap;
+}
+
 #centerArenaHUD {
   flex: 1;
   pointer-events: none;

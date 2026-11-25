@@ -33,6 +33,7 @@ import {
   RoundImpactLimiter,
 } from './systems/BalanceEconomy';
 import { PersonalProgressTracker } from './systems/PersonalProgress';
+import { FactionGoalSystem, getTeamCaptain } from './systems/FactionGoals';
 
 const $ = (id: string) => document.getElementById(id)!;
 const notificationDock = new NotificationDock($);
@@ -42,6 +43,7 @@ const tikfinity = new TikFinityClient();
 const externalObservability = new ExternalObservability('3.2.0');
 const impactLimiter = new RoundImpactLimiter();
 const personalProgress = new PersonalProgressTracker();
+const factionGoals = new FactionGoalSystem();
 const lastJoinAnnounceAt = new Map<string, number>();
 
 const sim = new Simulation(
@@ -56,7 +58,7 @@ const sim = new Simulation(
 );
 
 // =========================================================================
-// HUD DE COMBATE, ELIXIR Y NOTIFICATION DOCK
+// HUD DE COMBATE, ELIXIR, METAS DE BANDO Y NOTIFICATION DOCK
 // =========================================================================
 const lastElixirHud: Record<TeamId, { valText: string; queueLen: number }> = {
   A: { valText: '', queueLen: -1 },
@@ -99,6 +101,52 @@ function updateBaseHUD(): void {
   $('cardBaseB').classList.toggle('leading', bLeads);
 }
 
+function updateFactionHUD(): void {
+  (['A', 'B'] as TeamId[]).forEach((team) => {
+    const snap = factionGoals.getSnapshot(team);
+    const fill = document.getElementById(`factionGoalFill${team}`);
+    const text = document.getElementById(`factionGoalText${team}`);
+    const capEl = document.getElementById(`captain${team}`);
+
+    if (fill) fill.style.width = `${snap.pct}%`;
+    if (text) text.textContent = `🛡️ ${snap.likes}/${snap.target}`;
+
+    if (capEl) {
+      const cap = getTeamCaptain(team, state.roundMVP, state.sessionMVP);
+      capEl.textContent = cap
+        ? `🎖️ Cap: ${cap.user.replace('@', '').slice(0, 9)}`
+        : '🎖️ Cap: —';
+    }
+  });
+}
+
+function triggerFactionGoalReward(team: TeamId): void {
+  const base = team === 'A' ? state.teamA : state.teamB;
+  const heal = 300;
+  base.hp = Math.min(MAX_BASE_HP, base.hp + heal);
+  base.shieldHp = Math.max(base.shieldHp, 350);
+  base.shieldTimer = Math.max(base.shieldTimer, 10);
+  elixir.addElixir(team, 1.5);
+
+  const by = team === 'A' ? sim.baseAY : sim.baseBY;
+  sim.pushShockwave(sim.safeCenterX, by, 76, '#67E8F9', 3);
+  sim.pushBadge(sim.safeCenterX, by + (team === 'A' ? 24 : -24), '🛡️ ESCUDO DE BANDO', '#67E8F9');
+  synth.playSFX('shield');
+  updateBaseHUD();
+  updatePanicAlerts();
+
+  pushNotificationDock(
+    `🛡️ META DE ${base.name} COMPLETADA`,
+    `Escudo de Bando activo (+${heal} HP y +1.5⚡)`,
+    base.color,
+    '',
+    '',
+    '🛡️',
+    'BANDO',
+    2800
+  );
+}
+
 function updateFrenzyGaugeUI(): void {
   const pct = state.frenzyActive ? 100 : Math.min(100, Math.round((state.globalTapCount / state.frenzyGoalLikes) * 100));
   $('frenzyGaugeFill').style.width = `${pct}%`;
@@ -130,7 +178,7 @@ let tickerIdx = 0;
 function updateOnboardingTicker(): void {
   const tips = [
     `❤️ ${state.personalTapThreshold} Taps = Tropas`,
-    `Derriba 1 torre lateral`,
+    `🛡️ 150 Likes = Escudo de Bando`,
     `⚡ ${state.frenzyGoalLikes} Likes = Frenesí x2`,
     `Sube tu Rango con Taps`,
   ];
@@ -216,7 +264,13 @@ function addMVPPoints(user: string, team: TeamId, avatarUrl: string, points: num
   } else {
     scoreMvp(clean, avatarUrl, team, points);
   }
-  if (!top3Timer) top3Timer = setTimeout(() => { top3Timer = null; renderTop3MVP(); }, 400);
+  if (!top3Timer) {
+    top3Timer = setTimeout(() => {
+      top3Timer = null;
+      renderTop3MVP();
+      updateFactionHUD();
+    }, 400);
+  }
   if (!isDemo) savePersistentState();
 }
 
@@ -413,7 +467,7 @@ bus.on('game:chat', ({ user, comment, avatarUrl }) => {
 });
 
 // =========================================================================
-// TAP · FASE A + PROGRESO PERSONAL
+// TAP · FASE A + PROGRESO PERSONAL + METAS DE BANDO
 // =========================================================================
 bus.on('game:tap', ({ user, count, avatarUrl, forcedTeam, isDemo = false }) => {
   if (!state.roundActive) return;
@@ -451,7 +505,11 @@ bus.on('game:tap', ({ user, count, avatarUrl, forcedTeam, isDemo = false }) => {
     }
     state.viewerLikes.set(clean, Math.min(tapResult.residue, state.personalTapThreshold * 2));
 
-    if (progress.leveledUp) {
+    const goalProgress = factionGoals.addLikes(team, count);
+    updateFactionHUD();
+    if (goalProgress.triggeredCount > 0) {
+      triggerFactionGoalReward(team);
+    } else if (progress.leveledUp) {
       pushNotificationDock(
         `⭐ ${clean} · Nv.${progress.level} ${progress.title}`,
         `Progreso personal: ${progress.xp} XP (${progress.progressPct}%)`,
@@ -726,6 +784,7 @@ function resetRound(): void {
   if (victoryOverlayTimer) clearTimeout(victoryOverlayTimer);
   endTakeovers();
   impactLimiter.reset();
+  factionGoals.resetRound();
 
   cycleNextBiome();
   beginRound(getActiveBiome().id);
@@ -753,6 +812,7 @@ function resetRound(): void {
   $('victoryOverlay').classList.add('hidden');
   applyTeamUI();
   updateBaseHUD();
+  updateFactionHUD();
   updateFrenzyGaugeUI();
   syncTimerPill();
   announceActiveBiome();
@@ -768,6 +828,7 @@ function resetSession(): void {
 
   logWsEvent('Sesión y telemetría reiniciadas.');
   renderTop3MVP();
+  updateFactionHUD();
   renderTelemetry();
   resetRound();
 }
@@ -792,6 +853,7 @@ function applyTeamUI(): void {
 
   renderGiftLegend();
   renderTop3MVP();
+  updateFactionHUD();
   updateOnboardingTicker();
   settings.syncControlButtons();
   requestAnimationFrame(() => sim.updateGeometry());
@@ -880,6 +942,7 @@ settings.renderRosterChips();
 settings.renderGiftMapperTable();
 applyTeamUI();
 updateBaseHUD();
+updateFactionHUD();
 syncTimerPill();
 elixir.resetRound();
 synth.init();
