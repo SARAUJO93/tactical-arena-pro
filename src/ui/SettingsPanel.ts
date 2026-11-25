@@ -11,6 +11,12 @@ import { downloadFile, renderTelemetry } from '../systems/Telemetry';
 import { escapeHtml, hexToRgba } from '../utils/helpers';
 import { getAvatar } from '../systems/AvatarCache';
 import { ExternalObservability, sanitizeExternalEndpoint } from '../monitoring/ExternalObservability';
+import {
+  computeSeasonXp,
+  getPreviousSeasonChampion,
+  getSeasonPassProgress,
+  SEASON_PASS_TIERS,
+} from '../systems/SeasonPass';
 
 export interface SettingsPanelDeps {
   synth: SynthEngine;
@@ -28,7 +34,7 @@ export interface SettingsPanelDeps {
 
 const $ = (id: string) => document.getElementById(id)!;
 
-type LeagueTab = 'standings' | 'mvps' | 'gifters' | 'history';
+type LeagueTab = 'standings' | 'mvps' | 'gifters' | 'pass' | 'history';
 type GifterPeriod = 'today' | 'season' | 'lifetime';
 
 function compressImageFile(file: File, cb: (dataUrl: string) => void): void {
@@ -252,7 +258,7 @@ export class SettingsPanel {
     });
   }
 
-  /* ===================== LIGA (Fase A) ===================== */
+  /* ===================== LIGA (Fase A + Pase de Temporada) ===================== */
 
   private renderLeague(tab: LeagueTab): void {
     const season = state.currentSeason;
@@ -272,6 +278,7 @@ export class SettingsPanel {
     if (tab === 'standings') content.innerHTML = this.renderStandingsTab();
     else if (tab === 'mvps') content.innerHTML = this.renderMvpsTab();
     else if (tab === 'gifters') content.innerHTML = this.renderGiftersTab();
+    else if (tab === 'pass') content.innerHTML = this.renderPassTab();
     else content.innerHTML = this.renderHistoryTab();
 
     if (tab === 'gifters') {
@@ -425,6 +432,62 @@ export class SettingsPanel {
         ${sel('lifetime', 'Histórico')}
       </div>
       ${rows}
+    `;
+  }
+
+  private renderPassTab(): string {
+    const prevChamp = getPreviousSeasonChampion(state.seasonHistory);
+    const champBanner = prevChamp
+      ? `<div class="league-row podium-1" style="margin-bottom:8px;">
+          <div class="league-flag">${escapeHtml(prevChamp.championFlag || '🏆')}</div>
+          <div class="league-name">
+            <div style="font-size:8px;color:#FDE68A;letter-spacing:0.08em;">CAMPEÓN ERA ${String(prevChamp.index).padStart(2, '0')}</div>
+            <div style="color:#FFFFFF;">${escapeHtml(prevChamp.championName || '')}</div>
+          </div>
+          <div class="league-meta">${prevChamp.championMvp ? `👑 ${escapeHtml(prevChamp.championMvp.user)}` : 'Campeón'}</div>
+        </div>`
+      : `<div class="league-history-item" style="margin-bottom:8px;color:#CBD5E1;">
+          ✨ <strong>Temporada ${String(state.currentSeason.index).padStart(2, '0')}</strong> · El campeón será coronado en la cinemática de la próxima era.
+        </div>`;
+
+    const tiersHtml = SEASON_PASS_TIERS.map((t) => `
+      <div class="league-row" style="border-color:${hexToRgba(t.ringColor, 0.45)};">
+        <div class="league-pos" style="color:${t.ringColor};">T${t.tier}</div>
+        <div class="league-flag">${t.emblem}</div>
+        <div class="league-name" style="color:${t.ringColor};">${escapeHtml(t.title)}</div>
+        <div class="league-meta">Marco ${t.outerRingColor ? 'Doble' : 'Élite'}</div>
+        <div class="league-pts tabular" style="color:#E2E8F0;font-size:10px;">${t.xpRequired} XP</div>
+      </div>`).join('');
+
+    const playersWithXp = Object.values(state.playerRecords)
+      .map((rec) => ({ rec, progress: getSeasonPassProgress(computeSeasonXp(rec)) }))
+      .filter((entry) => entry.progress.xp > 0)
+      .sort((a, b) => b.progress.xp - a.progress.xp)
+      .slice(0, 10);
+
+    const playersHtml = playersWithXp.length
+      ? playersWithXp.map(({ rec, progress }, i) => {
+          const av = getAvatar(rec.avatarUrl, rec.user);
+          const cur = progress.current;
+          const border = cur ? cur.ringColor : 'rgba(255,255,255,0.35)';
+          const badgeText = cur ? `${cur.emblem} T${cur.tier}` : 'T0';
+          return `
+            <div class="league-row${i < 3 ? ` podium-${i + 1}` : ''}">
+              <div class="league-pos">${i + 1}</div>
+              <img class="league-avatar" src="${av.dataUrl}" alt="" style="border-color:${border};" />
+              <div class="league-name">${escapeHtml(rec.user)}</div>
+              <div class="league-meta">${badgeText} · ${progress.progressPct}%</div>
+              <div class="league-pts tabular" style="color:${cur ? cur.ringColor : '#94A3B8'};font-size:10px;">${progress.xp} XP</div>
+            </div>`;
+        }).join('')
+      : `<div class="league-empty">Los viewers suben en el Pase con taps, follows, shares y regalos reales.</div>`;
+
+    return `
+      ${champBanner}
+      <div class="league-subhead">🎟️ Pase Gratuito · Recompensas Cosméticas</div>
+      ${tiersHtml}
+      <div class="league-subhead" style="margin-top:12px;">⭐ Top Progreso del Pase</div>
+      ${playersHtml}
     `;
   }
 

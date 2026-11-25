@@ -2,6 +2,7 @@ import { DeployOrder, TeamId } from './EventBus';
 import { BaseState, DESIGN_W, MAX_BASE_HP, state } from './GameState';
 import { drawRoundRect, distSq, hexToRgba } from '../utils/helpers';
 import { drawUnitAvatar, resetAvatarFrameRegistry } from '../systems/AvatarCache';
+import { getCosmeticFrameFromBadges } from '../systems/SeasonPass';
 import { getActiveBiome } from '../config/biomes';
 import { BiomeRenderer } from '../render/BiomeRenderer';
 import { SynthEngine } from '../audio/SynthEngine';
@@ -1079,8 +1080,9 @@ export class Simulation {
         ctx.fillStyle = u.veteranRank > 1 ? '#FBBF24' : col; ctx.fillRect(-12, -18, 24 * (u.hp / u.maxHp), 3);
       }
       ctx.restore();
-      if (u.type === 'tank' && u.owner) drawUnitAvatar(ctx, u.x, u.y - 27, 9, u.avatarUrl, u.owner, col, u.veteranRank);
-      else if (u.type === 'soldier' && u.isLeader && u.owner) drawUnitAvatar(ctx, u.x, u.y - 16, 7, u.avatarUrl, u.owner, col, u.veteranRank);
+      const cosmetic = u.owner ? getCosmeticFrameFromBadges(state.playerRecords[u.owner]?.badges) : undefined;
+      if (u.type === 'tank' && u.owner) drawUnitAvatar(ctx, u.x, u.y - 27, 9, u.avatarUrl, u.owner, col, u.veteranRank, cosmetic);
+      else if (u.type === 'soldier' && u.isLeader && u.owner) drawUnitAvatar(ctx, u.x, u.y - 16, 7, u.avatarUrl, u.owner, col, u.veteranRank, cosmetic);
     }
 
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -1127,14 +1129,18 @@ export class Simulation {
       ctx.fillStyle = '#1E293B'; ctx.strokeStyle = col; ctx.lineWidth = 1.8;
       ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-9, -14); ctx.lineTo(-6, 0); ctx.lineTo(-9, 14); ctx.closePath(); ctx.fill(); ctx.stroke();
       ctx.restore();
-      if (j.owner) drawUnitAvatar(ctx, j.x, j.y - 20, 9, j.avatarUrl, j.owner, col, j.veteranRank);
+      if (j.owner) {
+        const cosmetic = getCosmeticFrameFromBadges(state.playerRecords[j.owner]?.badges);
+        drawUnitAvatar(ctx, j.x, j.y - 20, 9, j.avatarUrl, j.owner, col, j.veteranRank, cosmetic);
+      }
     }
 
     for (const orb of this.orbitals) {
       if (!orb.detonated) {
         const p = 1 - orb.timer / orb.maxTimer;
         ctx.strokeStyle = 'rgba(239,68,68,0.9)'; ctx.beginPath(); ctx.arc(orb.x, orb.y, 64 * (1 - p * 0.65), 0, Math.PI * 2); ctx.stroke();
-        drawUnitAvatar(ctx, orb.x, orb.y - (1 - p) * 160, 12, orb.avatarUrl, orb.owner, '#FBBF24');
+        const cosmetic = getCosmeticFrameFromBadges(state.playerRecords[orb.owner]?.badges);
+        drawUnitAvatar(ctx, orb.x, orb.y - (1 - p) * 160, 12, orb.avatarUrl, orb.owner, '#FBBF24', 1, cosmetic);
       } else {
         const a = orb.beamLife / 32, bw = 46 * a;
         ctx.fillStyle = `rgba(255,255,255,${a})`; ctx.fillRect(orb.x - bw, 0, bw * 2, this.H);
@@ -1228,7 +1234,8 @@ export class Simulation {
     ctx.restore();
 
     if (baseObj.shieldTimer > 0 && baseObj.shieldHp > 0 && baseObj.shieldOwner) {
-      drawUnitAvatar(ctx, x, y + (isTop ? 34 : -34), 8, baseObj.shieldAvatar, baseObj.shieldOwner, '#22D3EE');
+      const cosmetic = getCosmeticFrameFromBadges(state.playerRecords[baseObj.shieldOwner]?.badges);
+      drawUnitAvatar(ctx, x, y + (isTop ? 34 : -34), 8, baseObj.shieldAvatar, baseObj.shieldOwner, '#22D3EE', 1, cosmetic);
     }
   }
 }

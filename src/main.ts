@@ -34,6 +34,11 @@ import {
 } from './systems/BalanceEconomy';
 import { PersonalProgressTracker } from './systems/PersonalProgress';
 import { FactionGoalSystem, getTeamCaptain } from './systems/FactionGoals';
+import {
+  getCosmeticFrameFromBadges,
+  getPreviousSeasonChampion,
+  syncSeasonPassBadges,
+} from './systems/SeasonPass';
 
 const $ = (id: string) => document.getElementById(id)!;
 const notificationDock = new NotificationDock($);
@@ -147,6 +152,24 @@ function triggerFactionGoalReward(team: TeamId): void {
   );
 }
 
+function checkSeasonPassUnlock(user: string, avatarUrl: string): void {
+  const rec = state.playerRecords[user];
+  if (!rec) return;
+  const unlocked = syncSeasonPassBadges(rec);
+  if (!unlocked) return;
+  pushNotificationDock(
+    `🎟️ ${user} · ${unlocked.emblem} ${unlocked.title}`,
+    `Pase T${unlocked.tier} desbloqueado: marco cosmético activo`,
+    unlocked.ringColor,
+    avatarUrl,
+    user,
+    unlocked.emblem,
+    'PASE',
+    2900
+  );
+  savePersistentState();
+}
+
 function updateFrenzyGaugeUI(): void {
   const pct = state.frenzyActive ? 100 : Math.min(100, Math.round((state.globalTapCount / state.frenzyGoalLikes) * 100));
   $('frenzyGaugeFill').style.width = `${pct}%`;
@@ -179,8 +202,8 @@ function updateOnboardingTicker(): void {
   const tips = [
     `❤️ ${state.personalTapThreshold} Taps = Tropas`,
     `🛡️ 150 Likes = Escudo de Bando`,
+    `🎟️ Sube tu Pase Gratis con Taps`,
     `⚡ ${state.frenzyGoalLikes} Likes = Frenesí x2`,
-    `Sube tu Rango con Taps`,
   ];
   const tip = tips[tickerIdx % tips.length];
   tickerIdx++;
@@ -283,10 +306,14 @@ function renderTop3MVP(): void {
     const av = getAvatar(m.avatarUrl, m.user);
     const tCol = m.team === 'A' ? state.teamA.color : state.teamB.color;
     const pts = m.score >= 1000 ? `${(m.score / 1000).toFixed(1)}k` : String(m.score);
-    const rank = personalProgress.getRank(m.user, state.playerRecords[m.user]);
+    const rec = state.playerRecords[m.user];
+    const rank = personalProgress.getRank(m.user, rec);
+    const cosmetic = getCosmeticFrameFromBadges(rec?.badges);
+    const borderCol = cosmetic ? cosmetic.ringColor : rings[idx];
+    const badgeTag = cosmetic ? cosmetic.emblem : `Nv.${rank.level}`;
     return `<div class="mvp-item">
       <div style="position:relative;flex-shrink:0;">
-        <img src="${av.dataUrl}" alt="" style="width:16px;height:16px;border-radius:50%;object-fit:cover;border:1.5px solid ${rings[idx]};display:block;" />
+        <img src="${av.dataUrl}" alt="" style="width:16px;height:16px;border-radius:50%;object-fit:cover;border:1.5px solid ${borderCol};display:block;" />
         <span style="position:absolute;top:-5px;left:-4px;font-size:7px;line-height:1;">${medals[idx]}</span>
       </div>
       <div style="min-width:0;line-height:1.1;">
@@ -296,7 +323,7 @@ function renderTop3MVP(): void {
         </div>
         <div class="tabular" style="font-size:7px;color:#94A3B8;display:flex;align-items:center;">
           <span>${pts}</span>
-          <span class="mvp-lvl">Nv.${rank.level}</span>
+          <span class="mvp-lvl">${badgeTag}</span>
         </div>
       </div>
     </div>`;
@@ -329,6 +356,7 @@ function trackTapForViewer(user: string, avatarUrl: string, team: TeamId | null,
     rec.teamsSupported[team] = (rec.teamsSupported[team] ?? 0) + count;
   }
   state.currentRoundTaps += count;
+  checkSeasonPassUnlock(user, avatarUrl);
 }
 
 function trackGiftForViewer(user: string, avatarUrl: string, team: TeamId, count: number, coinsPerUnit: number): void {
@@ -343,18 +371,21 @@ function trackGiftForViewer(user: string, avatarUrl: string, team: TeamId, count
   rec.teamsSupported[team] = (rec.teamsSupported[team] ?? 0) + count;
   state.currentRoundCoins += coinDelta;
   state.currentRoundGifterCoins[user] = (state.currentRoundGifterCoins[user] ?? 0) + coinDelta;
+  checkSeasonPassUnlock(user, avatarUrl);
 }
 
 function trackFollowForViewer(user: string, avatarUrl: string): void {
   if (!user) return;
   const rec = ensurePlayerRecord(user, avatarUrl);
   rec.lifetime.follows += 1;
+  checkSeasonPassUnlock(user, avatarUrl);
 }
 
 function trackShareForViewer(user: string, avatarUrl: string): void {
   if (!user) return;
   const rec = ensurePlayerRecord(user, avatarUrl);
   rec.lifetime.shares += 1;
+  checkSeasonPassUnlock(user, avatarUrl);
 }
 
 // =========================================================================
@@ -467,7 +498,7 @@ bus.on('game:chat', ({ user, comment, avatarUrl }) => {
 });
 
 // =========================================================================
-// TAP · FASE A + PROGRESO PERSONAL + METAS DE BANDO
+// TAP · FASE A + PROGRESO PERSONAL + METAS DE BANDO + PASE
 // =========================================================================
 bus.on('game:tap', ({ user, count, avatarUrl, forcedTeam, isDemo = false }) => {
   if (!state.roundActive) return;
@@ -730,6 +761,7 @@ function triggerVictory(winner: TeamId): void {
     }
   }
 
+  if (roundLog.mvp) checkSeasonPassUnlock(roundLog.mvp.user, roundLog.mvp.avatarUrl);
   savePersistentState();
   state.shake = 18; state.screenFlash = 0.65;
   sim.spawnVictoryConfetti(winner);
@@ -741,12 +773,26 @@ function triggerVictory(winner: TeamId): void {
     ? { user: roundLog.mvp.user, avatarUrl: roundLog.mvp.avatarUrl, score: roundLog.mvp.score }
     : { user: '@Comandante', avatarUrl: '', score: 0 };
 
+  const prevChamp = getPreviousSeasonChampion(state.seasonHistory);
+  const kickerEl = document.getElementById('vicKicker');
+  if (kickerEl) {
+    kickerEl.textContent = prevChamp
+      ? `TEMPORADA ${String(state.currentSeason.index).padStart(2, '0')} · CAMPEÓN ERA ${String(prevChamp.index).padStart(2, '0')}: ${prevChamp.championFlag || '🏆'} ${prevChamp.championName}`
+      : `TACTICAL ARENA · TEMPORADA ${String(state.currentSeason.index).padStart(2, '0')}`;
+  }
+
+  const mvpRec = state.playerRecords[topRound.user];
+  const mvpCosmetic = getCosmeticFrameFromBadges(mvpRec?.badges);
+  const seasonPeak = mvpRec ? Math.max(topRound.score, mvpRec.peaks.maxRoundScore) : topRound.score;
+
   $('vicFlag').innerHTML = renderTeamFlagHtml(winObj.key, winObj.flag, 'hero');
   $('vicName').textContent = winObj.name;
   $('vicName').style.color = winObj.color;
-  ($('vicMvpAvatar') as HTMLImageElement).src = getAvatar(topRound.avatarUrl, topRound.user).dataUrl;
-  $('vicMvpUser').textContent = topRound.user;
-  $('vicMvpScore').textContent = `${topRound.score.toLocaleString()} pts`;
+  const vicAvatar = $('vicMvpAvatar') as HTMLImageElement;
+  vicAvatar.src = getAvatar(topRound.avatarUrl, topRound.user).dataUrl;
+  vicAvatar.style.borderColor = mvpCosmetic ? mvpCosmetic.ringColor : '#ffd77c';
+  $('vicMvpUser').textContent = mvpCosmetic ? `${mvpCosmetic.emblem} ${topRound.user}` : topRound.user;
+  $('vicMvpScore').textContent = `${topRound.score.toLocaleString()} pts · Récord S${String(state.currentSeason.index).padStart(2, '0')}: ${seasonPeak.toLocaleString()}`;
   $('vicStreakText').classList.toggle('hidden', !(state.tournamentMode && winObj.streak >= 1));
   $('vicStreakText').textContent = `🔥 ${winObj.streak} VICTORIA${winObj.streak > 1 ? 'S' : ''} EN EL TRONO`;
   $('vicChallengerBanner').classList.toggle('hidden', !nextChallenger);

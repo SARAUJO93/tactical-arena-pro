@@ -1,4 +1,5 @@
 import { drawRoundRect } from '../utils/helpers';
+import { AvatarCosmeticStyle } from './SeasonPass';
 
 export const MAX_AVATAR_CACHE = 150;
 
@@ -105,7 +106,8 @@ export function drawUnitAvatar(
   avatarUrl: string,
   username: string,
   ringColor: string,
-  veteranRank = 1
+  veteranRank = 1,
+  cosmetic?: AvatarCosmeticStyle
 ): void {
   if (!username) return;
 
@@ -117,11 +119,24 @@ export function drawUnitAvatar(
   avatarBubblePositions.push({ x, y, radius });
 
   const av = getAvatar(avatarUrl, username);
+  const frameColor = cosmetic ? cosmetic.ringColor : veteranRank > 1 ? '#FBBF24' : ringColor;
+
   ctx.save();
+  if (cosmetic?.outerRingColor) {
+    ctx.beginPath();
+    ctx.arc(x, y, radius + 3.5, 0, Math.PI * 2);
+    ctx.strokeStyle = cosmetic.outerRingColor;
+    ctx.lineWidth = 1.4;
+    ctx.shadowColor = cosmetic.outerRingColor;
+    ctx.shadowBlur = 10;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
   ctx.beginPath();
   ctx.arc(x, y, radius + 2, 0, Math.PI * 2);
-  ctx.fillStyle = veteranRank > 1 ? '#FBBF24' : ringColor;
-  ctx.shadowColor = veteranRank > 1 ? '#FBBF24' : ringColor;
+  ctx.fillStyle = frameColor;
+  ctx.shadowColor = frameColor;
   ctx.shadowBlur = 8;
   ctx.fill();
   ctx.shadowBlur = 0;
@@ -136,7 +151,8 @@ export function drawUnitAvatar(
   }
   ctx.restore();
 
-  const label = (veteranRank > 1 ? `★${veteranRank} ` : '') + (username.startsWith('@') ? username : `@${username}`).slice(0, 10);
+  const prefix = cosmetic ? `${cosmetic.emblem} ` : veteranRank > 1 ? `★${veteranRank} ` : '';
+  const label = prefix + (username.startsWith('@') ? username : `@${username}`).slice(0, 10);
   ctx.save();
   ctx.font = '700 8px -apple-system, BlinkMacSystemFont, sans-serif';
   ctx.textAlign = 'center';
@@ -159,7 +175,7 @@ export function drawUnitAvatar(
     ctx.fillStyle = 'rgba(2, 6, 23, 0.86)';
     drawRoundRect(ctx, chosen.left, chosen.top, tw, labelH, 4);
     ctx.fill();
-    ctx.fillStyle = veteranRank > 1 ? '#FDE047' : '#F8FAFC';
+    ctx.fillStyle = cosmetic ? cosmetic.ringColor : veteranRank > 1 ? '#FDE047' : '#F8FAFC';
     ctx.fillText(label, x, chosen.top + 7.3);
   }
   ctx.restore();
