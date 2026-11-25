@@ -30,6 +30,7 @@ jobs:
 
       - name: Validate release
         run: |
+          npm run check:release
           npm run lint
           npm test
           npm run build
@@ -38,15 +39,21 @@ jobs:
 
       - name: Package single-file build
         run: |
-          mkdir -p release
-          cp dist/index.html release/tactical-arena-${GITHUB_REF_NAME}.html
+          npm run release:notes
+          npm run package:release
           cd release
-          sha256sum tactical-arena-${GITHUB_REF_NAME}.html > SHA256SUMS.txt
+          tar -czf tactical-arena-${GITHUB_REF_NAME}.tar.gz \
+            tactical-arena-${GITHUB_REF_NAME}.html \
+            README.md TIKFINITY.md CHANGELOG.md LICENSE.md manifest.json
+          sha256sum tactical-arena-${GITHUB_REF_NAME}.html \
+            tactical-arena-${GITHUB_REF_NAME}.tar.gz > SHA256SUMS.txt
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body_path: release/RELEASE_NOTES.md
           files: |
             release/tactical-arena-${{ github.ref_name }}.html
+            release/tactical-arena-${{ github.ref_name }}.tar.gz
             release/SHA256SUMS.txt
+            release/manifest.json

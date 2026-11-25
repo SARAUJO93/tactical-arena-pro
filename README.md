@@ -62,3 +62,4 @@ Los estados corruptos se conservan bajo una clave `_corrupt_*` para diagnóstico
 
 Las etiquetas `v*` generan un artefacto HTML portable y un archivo `SHA256SUMS.txt`.
 La publicación requiere aprobación del environment `production` configurado en GitHub Actions.
+Cada release incluye además un paquete `.tar.gz`, documentación, notas y `manifest.json`.

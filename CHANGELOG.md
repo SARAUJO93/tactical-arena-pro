@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.5.0 - 2026-11-24
+
+- Added automated release tag and package version validation.
+- Added reconnect/recovery, persistence reload and soak coverage.
+- Added release manifest and portable package artifacts.
+- Published SHA-256 checksums for release integrity.
+- Documented manual production approval and tagged releases.
+
 ## Unreleased - Cobertura operativa
 
 - Added reconnect/recovery coverage for TikFinity WebSocket sessions.

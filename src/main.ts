@@ -733,7 +733,7 @@ elixir.resetRound();
 synth.init();
 synth.applyMusicMode();
 announceActiveBiome();
-logWsEvent('Tactical Arena V2.4.1 listo · Fase A activa (Liga / Records).');
+logWsEvent('Tactical Arena V2.5.0 listo · Fase A activa (Liga / Records).');
 installErrorMonitoring();
 const arenaRuntime = new ArenaRuntime({
   elixir,

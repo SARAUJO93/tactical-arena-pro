@@ -1,7 +1,7 @@
 {
   "name": "tactical-arena-pro",
   "private": true,
-  "version": "2.4.1",
+  "version": "2.5.0",
   "type": "module",
   "engines": {
     "node": ">=20.19.0"
@@ -13,7 +13,10 @@
     "test": "vitest run src",
     "lint": "eslint src",
     "test:e2e": "playwright test tests/e2e/app.smoke.spec.ts",
-    "test:soak": "playwright test tests/e2e/app.soak.spec.ts"
+    "test:soak": "playwright test tests/e2e/app.soak.spec.ts",
+    "check:release": "node scripts/check-release.mjs",
+    "release:notes": "node scripts/generate-release-notes.mjs",
+    "package:release": "node scripts/package-release.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
