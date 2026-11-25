@@ -46,7 +46,7 @@ export function getWeeklyEventForDate(date = new Date()): WeeklyEvent {
       dayLabel: 'LUNES',
       badge: biome.icon,
       title: 'Lunes de Bioma',
-      description: `Mapa destacado: ${biome.name}`,
+      description: `Bioma destacado de la semana: ${biome.name}`,
       isFeatured: false,
       factionGoalLikes: FACTION_GOAL_DEFAULT_LIKES,
       featuredBiomeId: biome.id,
@@ -100,7 +100,7 @@ export function getWeeklyCalendar(date = new Date()): WeeklyCalendarItem[] {
       dayShort: 'LUN',
       badge: weekBiome.icon,
       title: 'Lunes de Bioma',
-      detail: `Bioma fijo: ${weekBiome.name}`,
+      detail: `Bioma destacado: ${weekBiome.name}`,
       isToday: day === 1,
     },
     {

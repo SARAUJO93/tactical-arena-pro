@@ -124,6 +124,19 @@ describe('Fase 2 - ciclo de round', () => {
     expect(state.teamB.key).toBe(openingMatch.teamB?.key);
   });
 
+  it('persiste el bioma activo y el orden pendiente de la rotación', () => {
+    state.currentRoundBiome = 'desert';
+    state.biomeRotationRemaining = ['frost', 'volcano'];
+    saveNow();
+    state.currentRoundBiome = 'grove';
+    state.biomeRotationRemaining = [];
+
+    loadPersistentState();
+
+    expect(state.currentRoundBiome).toBe('desert');
+    expect(state.biomeRotationRemaining).toEqual(['frost', 'volcano']);
+  });
+
   it('mantiene los partidos de Copa fuera de la tabla de temporada regular', () => {
     prepareWorldCup();
     const standingsBefore = structuredClone(state.currentSeason.standings);

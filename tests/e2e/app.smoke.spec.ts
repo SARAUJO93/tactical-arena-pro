@@ -138,12 +138,22 @@ test('persiste cambios de configuración después de recargar', async ({ page })
 });
 
 test('puede finalizar una ronda y mostrar la victoria', async ({ page }) => {
+  await page.clock.install();
+  await page.clock.pauseAt(new Date());
   await page.evaluate(() => {
     const arena = window as unknown as { triggerVictory?: (team: 'A' | 'B') => void };
     arena.triggerVictory?.('A');
   });
+  await page.clock.runFor(650);
   await expect(page.locator('#victoryOverlay')).not.toHaveClass(/hidden/);
   await expect(page.locator('#vicName')).toBeVisible();
+  await expect(page.locator('#vicCountdown')).toHaveText('20');
+  await page.clock.runFor(19000);
+  await expect(page.locator('#vicCountdown')).toHaveText('1');
+  await expect(page.locator('#victoryOverlay')).not.toHaveClass(/hidden/);
+  await page.clock.runFor(1000);
+  await expect(page.locator('#vicCountdown')).toHaveText('0');
+  await expect(page.locator('#victoryOverlay')).toHaveClass(/hidden/);
   await expect(page.locator('#vicCrownScore')).toContainText('CORONAS');
 });
 

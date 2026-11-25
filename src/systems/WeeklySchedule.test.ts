@@ -3,7 +3,7 @@ import { BIOMES } from '../config/biomes';
 import { getWeeklyCalendar, getWeeklyEventForDate } from './WeeklySchedule';
 
 describe('weekly biome rotation', () => {
-  it('keeps the Monday featured biome fixed for the full local week', () => {
+  it('keeps the Monday featured biome consistent for the full local week', () => {
     const monday = new Date(2026, 10, 23, 12);
     const mondayEvent = getWeeklyEventForDate(monday);
     expect(mondayEvent.id).toBe('monday_biome');
@@ -12,7 +12,9 @@ describe('weekly biome rotation', () => {
     for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
       const date = new Date(2026, 10, 23 + dayOffset, 12);
       const mondayCalendarItem = getWeeklyCalendar(date)[0];
-      expect(mondayCalendarItem.detail).toBe(`Bioma fijo: ${mondayEvent.description.replace('Mapa destacado: ', '')}`);
+      expect(mondayCalendarItem.detail).toBe(
+        `Bioma destacado: ${mondayEvent.description.replace('Bioma destacado de la semana: ', '')}`,
+      );
     }
   });
 

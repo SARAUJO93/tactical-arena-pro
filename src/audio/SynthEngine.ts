@@ -399,6 +399,151 @@ export class SynthEngine {
     }
   }
 
+  private playChoirChord(notes: number[], stepSec: number, t: number, intense: boolean): void {
+    if (!this.ctx) return;
+    const peak = intense ? 0.026 : 0.016;
+    for (const note of notes) {
+      const lower = this.ctx.createOscillator();
+      const upper = this.ctx.createOscillator();
+      const filter = this.ctx.createBiquadFilter();
+      const gain = this.ctx.createGain();
+      const frequency = midiToFreq(note);
+
+      lower.type = 'sawtooth';
+      upper.type = 'triangle';
+      lower.frequency.setValueAtTime(frequency * 0.998, t);
+      upper.frequency.setValueAtTime(frequency * 1.002, t);
+      filter.type = 'lowpass';
+      filter.Q.value = 0.7;
+      filter.frequency.setValueAtTime(680, t);
+      filter.frequency.linearRampToValueAtTime(intense ? 1750 : 1320, t + stepSec * 4);
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(peak, t + stepSec * 3);
+      gain.gain.setValueAtTime(peak * 0.82, t + stepSec * 11);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + stepSec * 15.8);
+
+      lower.connect(filter);
+      upper.connect(filter);
+      filter.connect(gain);
+      this.connectToMusicBuses(gain, 0.82);
+      lower.start(t);
+      upper.start(t);
+      lower.stop(t + stepSec * 16);
+      upper.stop(t + stepSec * 16);
+    }
+  }
+
+  private playCinematicPercussion(t: number, stepSec: number, bar: number, beatStep: number, intense: boolean): void {
+    if (!this.ctx) return;
+
+    if (beatStep === 0 || beatStep === 8) {
+      const drum = this.ctx.createOscillator();
+      const body = this.ctx.createGain();
+      const strongHit = beatStep === 0;
+      drum.type = 'sine';
+      drum.frequency.setValueAtTime(strongHit ? 96 : 76, t);
+      drum.frequency.exponentialRampToValueAtTime(34, t + 0.22);
+      body.gain.setValueAtTime(0.001, t);
+      body.gain.linearRampToValueAtTime((strongHit ? 0.2 : 0.13) * (intense ? 1.2 : 1), t + 0.008);
+      body.gain.exponentialRampToValueAtTime(0.001, t + 0.48);
+      drum.connect(body);
+      this.connectToMusicBuses(body, 0.18);
+      drum.start(t);
+      drum.stop(t + 0.5);
+
+      if (this.noiseBuffer) {
+        const noise = this.ctx.createBufferSource();
+        const filter = this.ctx.createBiquadFilter();
+        const snap = this.ctx.createGain();
+        noise.buffer = this.noiseBuffer;
+        filter.type = 'lowpass';
+        filter.frequency.value = strongHit ? 620 : 420;
+        snap.gain.setValueAtTime(strongHit ? 0.075 : 0.045, t);
+        snap.gain.exponentialRampToValueAtTime(0.001, t + 0.085);
+        noise.connect(filter);
+        filter.connect(snap);
+        this.connectToMusicBuses(snap, 0.12);
+        noise.start(t);
+        noise.stop(t + 0.09);
+      }
+    }
+
+    if (bar === 0 && beatStep === 0 && this.noiseBuffer) {
+      const crash = this.ctx.createBufferSource();
+      const filter = this.ctx.createBiquadFilter();
+      const gain = this.ctx.createGain();
+      crash.buffer = this.noiseBuffer;
+      crash.loop = true;
+      filter.type = 'highpass';
+      filter.frequency.setValueAtTime(2400, t);
+      filter.frequency.exponentialRampToValueAtTime(8200, t + 0.8);
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(intense ? 0.11 : 0.07, t + 0.025);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 1.35);
+      crash.connect(filter);
+      filter.connect(gain);
+      this.connectToMusicBuses(gain, 0.72);
+      crash.start(t);
+      crash.stop(t + 1.4);
+    }
+  }
+
+  private playVictoryStinger(t: number): void {
+    if (!this.ctx) return;
+    const notes = [261.63, 392, 523.25, 659.25, 783.99, 1046.5];
+    notes.forEach((frequency, index) => {
+      if (!this.ctx) return;
+      const start = t + index * 0.045;
+      const oscillator = this.ctx.createOscillator();
+      const filter = this.ctx.createBiquadFilter();
+      const gain = this.ctx.createGain();
+      oscillator.type = index < 2 ? 'triangle' : 'sawtooth';
+      oscillator.frequency.setValueAtTime(frequency, start);
+      filter.type = 'lowpass';
+      filter.frequency.value = index < 2 ? 1100 : 3200;
+      gain.gain.setValueAtTime(0.001, start);
+      gain.gain.linearRampToValueAtTime(0.045 - index * 0.004, start + 0.07);
+      gain.gain.setValueAtTime(0.032 - index * 0.0025, start + 0.42);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 1.55);
+      oscillator.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
+      oscillator.start(start);
+      oscillator.stop(start + 1.6);
+    });
+
+    const drum = this.ctx.createOscillator();
+    const drumGain = this.ctx.createGain();
+    drum.type = 'sine';
+    drum.frequency.setValueAtTime(92, t);
+    drum.frequency.exponentialRampToValueAtTime(38, t + 0.28);
+    drumGain.gain.setValueAtTime(0.001, t);
+    drumGain.gain.linearRampToValueAtTime(0.2, t + 0.01);
+    drumGain.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+    drum.connect(drumGain);
+    drumGain.connect(this.ctx.destination);
+    drum.start(t);
+    drum.stop(t + 0.92);
+
+    if (this.noiseBuffer) {
+      const crash = this.ctx.createBufferSource();
+      const filter = this.ctx.createBiquadFilter();
+      const gain = this.ctx.createGain();
+      crash.buffer = this.noiseBuffer;
+      crash.loop = true;
+      filter.type = 'highpass';
+      filter.frequency.value = 2600;
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(0.085, t + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 1.35);
+      crash.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
+      crash.start(t);
+      crash.stop(t + 1.4);
+    }
+  }
+
   checkObsAudioUnlock(): void {
     const btn = document.getElementById('obsAudioUnlock');
     if (!btn) return;
@@ -447,6 +592,7 @@ export class SynthEngine {
   getCurrentBPM(): number {
     const track = BIOME_TRACKS[getActiveBiome().id];
     const base = state.musicMode === 'pulse' ? Math.max(114, track.baseBpm - 10) : track.baseBpm;
+    if (state.towerDecayActive) return Math.max(72, Math.round(base * 0.78));
     if (state.suddenDeathActive) return Math.round(base * 1.18);
     if (state.frenzyActive) return Math.round(base * 1.07);
     return base;
@@ -513,6 +659,9 @@ export class SynthEngine {
         pad.start(t);
         pad.stop(t + stepSec * 16);
       });
+      if (state.musicMode !== 'pulse') {
+        this.playChoirChord(chord.slice(0, 3), stepSec, t, intense);
+      }
     }
 
     // 3. Cuerdas Spiccato (ensamble con ligero detune para ancho orquestal)
@@ -667,6 +816,8 @@ export class SynthEngine {
       ao.start(t);
       ao.stop(t + 0.1);
     }
+
+    this.playCinematicPercussion(t, stepSec, bar, beatStep, intense);
   }
 
   private startSequencer(): void {
@@ -770,7 +921,7 @@ export class SynthEngine {
       case 'sudden_horn': tone(185, 138, 0.55, 'sawtooth', 0.18); break;
       case 'nuclear_siren': tone(420, 860, 0.5, 'sawtooth', 0.16); break;
       case 'orbital_boom': tone(110, 28, 0.65, 'sawtooth', 0.22); break;
-      case 'victory': tone(523, 784, 0.45, 'triangle', 0.18); break;
+      case 'victory': this.playVictoryStinger(t); break;
       case 'follow': tone(587, 880, 0.14, 'sine', 0.09); break;
     }
   }

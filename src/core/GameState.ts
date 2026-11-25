@@ -1,5 +1,6 @@
 import { TeamId } from './EventBus';
 import { LruMap } from '../utils/helpers';
+import { BIOMES, BiomeTheme } from '../config/biomes';
 import {
   createEmptyWorldCup,
   createWorldCup,
@@ -10,7 +11,7 @@ import {
 } from '../systems/WorldCup';
 
 export const STORAGE_KEY = 'tactical_arena_v2_3_league';
-export const PERSISTENCE_SCHEMA_VERSION = 4;
+export const PERSISTENCE_SCHEMA_VERSION = 5;
 export const MAX_BASE_HP = 3000;
 export const MAX_SIDE_DEFENSE_HP = 1350;
 export const ROUND_DURATION_SEC = 180;
@@ -454,7 +455,8 @@ export const state = {
   currentRoundCoins: 0,
   currentRoundTaps: 0,
   currentRoundGifterCoins: {} as Record<string, number>,
-  currentRoundBiome: 'grove' as string,
+  currentRoundBiome: 'grove' as BiomeTheme['id'],
+  biomeRotationRemaining: [] as BiomeTheme['id'][],
 
   /* ---------- MVP actuales ---------- */
   sessionMVP: {} as Record<string, MvpEntry>,
@@ -734,7 +736,7 @@ export function scoreMvp(user: string, avatarUrl: string, team: TeamId, delta: n
    CICLO DE ROUND
    ===================================================================== */
 
-export function beginRound(biome: string): void {
+export function beginRound(biome: BiomeTheme['id']): void {
   state.roundActive = true;
   state.roundTimeLeft = state.roundDurationSec;
   state.suddenDeathActive = false;
@@ -1105,6 +1107,8 @@ export function saveNow(): void {
         musicMode: state.musicMode,
         musicVolume: state.musicVolume,
         ttsEnabled: state.ttsEnabled,
+        currentRoundBiome: state.currentRoundBiome,
+        biomeRotationRemaining: state.biomeRotationRemaining,
         sessionMVP: top20Mvp,
         telemetry: { ...state.telemetry, elapsedMs: Date.now() - state.telemetry.sessionStart },
 
@@ -1438,6 +1442,8 @@ export function loadPersistentState(): void {
     }
     const finiteNumber = (value: unknown): value is number =>
       typeof value === 'number' && Number.isFinite(value);
+    const isBiomeId = (value: unknown): value is BiomeTheme['id'] =>
+      typeof value === 'string' && BIOMES.some((biome) => biome.id === value);
     const isTeamPreset = (value: unknown): value is TeamPreset =>
       !!value && typeof value === 'object' &&
       typeof (value as TeamPreset).name === 'string' &&
@@ -1499,6 +1505,11 @@ export function loadPersistentState(): void {
     if (finiteNumber(persisted.frenzyGoalLikes)) state.frenzyGoalLikes = Math.max(25, Math.min(500, Math.floor(persisted.frenzyGoalLikes)));
     if (typeof persisted.unalignedTapSupportsUnderdog === 'boolean') state.unalignedTapSupportsUnderdog = persisted.unalignedTapSupportsUnderdog;
     if (typeof persisted.aiDirectorEnabled === 'boolean') state.aiDirectorEnabled = persisted.aiDirectorEnabled;
+    if (isBiomeId(persisted.currentRoundBiome)) state.currentRoundBiome = persisted.currentRoundBiome;
+    if (Array.isArray(persisted.biomeRotationRemaining)) {
+      state.biomeRotationRemaining = [...new Set(persisted.biomeRotationRemaining.filter(isBiomeId))]
+        .filter((id) => id !== state.currentRoundBiome);
+    }
     if (typeof persisted.audioEnabled === 'boolean') state.audioEnabled = persisted.audioEnabled;
     if (typeof persisted.externalObservabilityEnabled === 'boolean') state.externalObservabilityEnabled = persisted.externalObservabilityEnabled;
     if (typeof persisted.externalObservabilityEndpoint === 'string') {

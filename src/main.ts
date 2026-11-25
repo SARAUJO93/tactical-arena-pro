@@ -19,7 +19,7 @@ import { logWsEvent, recordTelemetryGift, renderTelemetry } from './systems/Tele
 import { escapeHtml } from './utils/helpers';
 import { SettingsPanel } from './ui/SettingsPanel';
 import { initInputShortcuts } from './ui/InputShortcuts';
-import { BIOMES, BiomeTheme, cycleNextBiome, getActiveBiome, getBiomeProgressText, setActiveBiome } from './config/biomes';
+import { BiomeTheme, getActiveBiome, setActiveBiome } from './config/biomes';
 import { renderTeamFlagHtml } from './ui/FlagRenderer';
 import { NotificationDock } from './ui/NotificationDock';
 import { consumeTapRewards } from './utils/tapRewards';
@@ -40,6 +40,7 @@ import {
   recordBiomeExploration,
 } from './systems/PersonalProgress';
 import { BiomeVoteSystem } from './systems/BiomeVoteSystem';
+import { BiomeRotationSystem } from './systems/BiomeRotation';
 import { FactionGoalSystem, getTeamCaptain } from './systems/FactionGoals';
 import {
   getCosmeticFrameFromBadges,
@@ -61,6 +62,7 @@ const impactLimiter = new RoundImpactLimiter();
 const personalProgress = new PersonalProgressTracker();
 const factionGoals = new FactionGoalSystem();
 const biomeVote = new BiomeVoteSystem();
+const biomeRotation = new BiomeRotationSystem();
 const lastJoinAnnounceAt = new Map<string, number>();
 let nextBiomeOverride: BiomeTheme['id'] | null = null;
 
@@ -272,7 +274,7 @@ function pushNotificationDock(
   notificationDock.push(title, sub, color, avatarUrl, user, glyph, tag, durationMs);
 }
 
-function renderBiomeVote(): void {
+function renderBiomeVote(weeklyBiomeId: BiomeTheme['id'] | null = null): void {
   const element = $('vicBiomeVote');
   const snapshot = biomeVote.getSnapshot();
   if (!snapshot) {
@@ -280,25 +282,27 @@ function renderBiomeVote(): void {
     return;
   }
   element.classList.remove('hidden');
+  const featuredOption = [snapshot.first, snapshot.second].find((biome) => biome.id === weeklyBiomeId);
+  const featuredLabel = featuredOption ? ` · ⭐ ${featuredOption.name} destacado semanal` : '';
   element.textContent =
     `🗺️ ¡VOTA! Escribe 1 o 2 · 1 ${snapshot.first.icon} ${snapshot.first.name} (${snapshot.votesFirst})` +
-    ` · 2 ${snapshot.second.icon} ${snapshot.second.name} (${snapshot.votesSecond}) · Empate: gana 1`;
+    ` · 2 ${snapshot.second.icon} ${snapshot.second.name} (${snapshot.votesSecond}) · Empate: gana 1${featuredLabel}`;
 }
 
 function openBiomeVote(weeklyBiomeId: BiomeTheme['id'] | null): void {
-  if (weeklyBiomeId) {
+  const options = biomeRotation.getOptions(weeklyBiomeId);
+  if (options.length === 1) {
     biomeVote.reset();
+    nextBiomeOverride = options[0].id;
     $('vicBiomeVote').classList.remove('hidden');
-    $('vicBiomeVote').textContent = `🗓️ Bioma semanal fijo: ${getActiveBiome().name}`;
+    $('vicBiomeVote').textContent = `🔄 Último bioma de la rotación: ${options[0].icon} ${options[0].name}`;
     return;
   }
 
-  const activeIndex = BIOMES.findIndex((biome) => biome.id === getActiveBiome().id);
-  const startIndex = activeIndex < 0 ? 0 : activeIndex;
-  const first = BIOMES[(startIndex + 1) % BIOMES.length];
-  const second = BIOMES[(startIndex + 2) % BIOMES.length];
+  const [first, second] = options;
+  if (!second) throw new Error('Biome rotation did not provide two distinct choices');
   biomeVote.start([first, second]);
-  renderBiomeVote();
+  renderBiomeVote(weeklyBiomeId);
 }
 
 function announceActiveBiome(): void {
@@ -306,7 +310,7 @@ function announceActiveBiome(): void {
   const weekly = getWeeklyEventForDate();
   const sub = weekly.id !== 'regular'
     ? `${weekly.title} · ${weekly.description}`
-    : `Escenario ${getBiomeProgressText()}`;
+    : `Rotación aleatoria · ${biomeRotation.getRemainingIds().length} biomas por descubrir`;
   pushNotificationDock(b.name, sub, b.accent, '', '', b.icon, weekly.dayLabel, 3200);
 }
 
@@ -888,7 +892,6 @@ function triggerVictory(
 
   const weekly = getWeeklyEventForDate();
   nextBiomeOverride = null;
-  openBiomeVote(weekly.featuredBiomeId);
   const roundLog = finalizeRound(winner, {
     suddenDeath: state.suddenDeathActive || state.towerDecayActive,
     featured: weekly.isFeatured,
@@ -920,6 +923,12 @@ function triggerVictory(
     ? recordWorldCupWinner(state.worldCup, winObj.key)
     : null;
   const worldCupCompleted = cupWasActive && state.worldCup.status === 'completed';
+  if (worldCupCompleted) {
+    biomeVote.reset();
+    $('vicBiomeVote').classList.add('hidden');
+  } else {
+    openBiomeVote(weekly.featuredBiomeId);
+  }
 
   if (roundLog.mvp) checkSeasonPassUnlock(roundLog.mvp.user, roundLog.mvp.avatarUrl);
   savePersistentState();
@@ -988,40 +997,47 @@ function triggerVictory(
   settings.syncControlButtons();
 
   if (victoryOverlayTimer) clearTimeout(victoryOverlayTimer);
+  if (restartTimer) clearInterval(restartTimer);
   victoryOverlayTimer = setTimeout(() => {
     const ov = $('victoryOverlay');
     ov.classList.remove('hidden', 'show');
     void ov.offsetWidth;
     ov.classList.add('show');
-  }, 650);
+    victoryOverlayTimer = null;
 
-  let sec = 10;
-  $('vicCountdown').textContent = String(sec);
-  if (restartTimer) clearInterval(restartTimer);
-  restartTimer = setInterval(() => {
-    sec--;
-    $('vicCountdown').textContent = String(Math.max(0, sec));
-    if (sec <= 0) {
-      if (restartTimer) clearInterval(restartTimer);
-      nextBiomeOverride = weekly.featuredBiomeId ? null : biomeVote.finish()?.id ?? null;
-      if (nextWorldCupMatch?.teamA && nextWorldCupMatch.teamB) {
-        state.teamA = makeBaseState(nextWorldCupMatch.teamA, true);
-        state.teamB = makeBaseState(nextWorldCupMatch.teamB, false);
-        state.viewerTeams.clear();
-        applyTeamUI();
-        savePersistentState();
-      } else if (worldCupCompleted) {
-        $('vicCountdown').textContent = '🏆';
-        return;
-      } else if (nextChallenger) {
-        Object.assign(winner === 'A' ? state.teamB : state.teamA, nextChallenger, { wins: 0, streak: 0 });
-        state.viewerTeams.clear();
-        applyTeamUI();
-        savePersistentState();
+    let sec = 20;
+    $('vicCountdown').textContent = String(sec);
+    restartTimer = setInterval(() => {
+      sec--;
+      $('vicCountdown').textContent = String(Math.max(0, sec));
+      if (sec <= 0) {
+        if (restartTimer) clearInterval(restartTimer);
+        restartTimer = null;
+        if (worldCupCompleted) {
+          biomeVote.reset();
+          const overlay = $('victoryOverlay');
+          overlay.classList.remove('show');
+          overlay.classList.add('hidden');
+          return;
+        }
+        const selectedBiome = biomeVote.finish();
+        if (selectedBiome) nextBiomeOverride = selectedBiome.id;
+        if (nextWorldCupMatch?.teamA && nextWorldCupMatch.teamB) {
+          state.teamA = makeBaseState(nextWorldCupMatch.teamA, true);
+          state.teamB = makeBaseState(nextWorldCupMatch.teamB, false);
+          state.viewerTeams.clear();
+          applyTeamUI();
+          savePersistentState();
+        } else if (nextChallenger) {
+          Object.assign(winner === 'A' ? state.teamB : state.teamA, nextChallenger, { wins: 0, streak: 0 });
+          state.viewerTeams.clear();
+          applyTeamUI();
+          savePersistentState();
+        }
+        resetRound();
       }
-      resetRound();
-    }
-  }, 1000);
+    }, 1000);
+  }, 650);
 }
 
 function resetRound(): void {
@@ -1031,16 +1047,17 @@ function resetRound(): void {
   impactLimiter.reset();
 
   const weekly = getWeeklyEventForDate();
-  const selectedBiome = nextBiomeOverride;
+  const selectedBiome = nextBiomeOverride ?? biomeVote.finish()?.id ?? biomeRotation.getOptions(weekly.featuredBiomeId)[0]?.id;
+  if (!selectedBiome) throw new Error('No biome is available for the next round');
   nextBiomeOverride = null;
+  biomeRotation.select(selectedBiome);
+  state.biomeRotationRemaining = biomeRotation.getRemainingIds();
   biomeVote.reset();
   factionGoals.setTargetLikes(weekly.factionGoalLikes);
   factionGoals.resetRound();
 
-  if (weekly.featuredBiomeId) setActiveBiome(weekly.featuredBiomeId);
-  else if (selectedBiome) setActiveBiome(selectedBiome);
-  else cycleNextBiome();
-  beginRound(getActiveBiome().id);
+  setActiveBiome(selectedBiome);
+  beginRound(selectedBiome);
 
   [state.teamA, state.teamB].forEach((t) => {
     t.flash = 0;
@@ -1070,6 +1087,7 @@ function resetRound(): void {
   updateFrenzyGaugeUI();
   syncTimerPill();
   announceActiveBiome();
+  savePersistentState();
 }
 
 function resetSession(): void {
@@ -1215,11 +1233,13 @@ bus.on('tikfinity:status', ({ status, detail }) => {
 window.addEventListener('pointerdown', () => synth.unlock(), { passive: true });
 loadPersistentState();
 if (state.worldCup.status === 'completed') state.roundActive = false;
+biomeRotation.restore(state.currentRoundBiome, state.biomeRotationRemaining);
+state.biomeRotationRemaining = biomeRotation.getRemainingIds();
+setActiveBiome(state.currentRoundBiome);
 externalObservability.start();
 resetIfNeeded();
 const initialWeekly = getWeeklyEventForDate();
 factionGoals.setTargetLikes(initialWeekly.factionGoalLikes);
-if (initialWeekly.featuredBiomeId) setActiveBiome(initialWeekly.featuredBiomeId);
 settings.renderRosterChips();
 settings.renderGiftMapperTable();
 applyTeamUI();
@@ -1230,6 +1250,7 @@ elixir.resetRound();
 synth.init();
 synth.applyMusicMode();
 announceActiveBiome();
+savePersistentState();
 logWsEvent(`Tactical Arena V3.2.0 listo · ${initialWeekly.title}.`);
 void registerOfflineCache();
 installErrorMonitoring();
