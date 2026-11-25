@@ -22,12 +22,20 @@ interface TeamGoalState {
 }
 
 export class FactionGoalSystem {
+  private targetLikes: number;
   private goals: Record<TeamId, TeamGoalState> = {
     A: { likes: 0, completedCount: 0 },
     B: { likes: 0, completedCount: 0 },
   };
 
-  constructor(private readonly targetLikes = FACTION_GOAL_DEFAULT_LIKES) {}
+  constructor(targetLikes = FACTION_GOAL_DEFAULT_LIKES) {
+    this.targetLikes = Math.max(25, Math.floor(targetLikes));
+  }
+
+  setTargetLikes(targetLikes: number): void {
+    if (!Number.isFinite(targetLikes)) return;
+    this.targetLikes = Math.max(25, Math.floor(targetLikes));
+  }
 
   resetRound(): void {
     this.goals = {

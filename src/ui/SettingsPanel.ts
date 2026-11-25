@@ -17,6 +17,8 @@ import {
   getSeasonPassProgress,
   SEASON_PASS_TIERS,
 } from '../systems/SeasonPass';
+import { getWeeklyCalendar } from '../systems/WeeklySchedule';
+import { computeBalanceReport } from '../systems/BalanceAnalytics';
 
 export interface SettingsPanelDeps {
   synth: SynthEngine;
@@ -258,7 +260,7 @@ export class SettingsPanel {
     });
   }
 
-  /* ===================== LIGA (Fase A + Pase de Temporada) ===================== */
+  /* ===================== LIGA (Fase A + Pase + Calendario) ===================== */
 
   private renderLeague(tab: LeagueTab): void {
     const season = state.currentSeason;
@@ -295,6 +297,16 @@ export class SettingsPanel {
     const standings = getStandings();
     const tAKey = state.teamA.key;
     const tBKey = state.teamB.key;
+
+    const calendarRows = getWeeklyCalendar()
+      .map((item) => `
+        <div class="league-row${item.isToday ? ' podium-1' : ''}" style="padding:5px 8px;">
+          <div class="league-pos" style="width:28px;font-size:9px;">${item.dayShort}</div>
+          <div class="league-flag" style="font-size:12px;">${item.badge}</div>
+          <div class="league-name" style="font-size:9.5px;">${escapeHtml(item.title)}</div>
+          <div class="league-meta" style="font-size:8.5px;color:${item.isToday ? '#FDE68A' : '#94A3B8'};">${item.isToday ? 'HOY · ' : ''}${escapeHtml(item.detail)}</div>
+        </div>`)
+      .join('');
 
     const rows = standings.map((s, idx) => {
       const podium = idx < 3 ? ` podium-${idx + 1}` : '';
@@ -340,6 +352,8 @@ export class SettingsPanel {
     if (!rows) return `<div class="league-empty">Sin partidos jugados en esta temporada.</div>`;
 
     return `
+      <div class="league-subhead">📅 Calendario Semanal</div>
+      ${calendarRows}
       <div class="league-subhead">Tabla de la Temporada ${String(state.currentSeason.index).padStart(2, '0')}</div>
       ${rows}
       ${recordsBlock}
@@ -786,6 +800,7 @@ export class SettingsPanel {
       const payload = {
         ...state.telemetry,
         topMVP: Object.values(state.sessionMVP).sort((a, b) => b.score - a.score).slice(0, 10),
+        balance: computeBalanceReport(state.roundLogs, state.giftSlots, state.telemetry.giftBreakdown),
         league: {
           season: state.currentSeason,
           teamRecords: state.teamRecords,

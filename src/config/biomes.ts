@@ -81,6 +81,15 @@ export function getActiveBiome(): BiomeTheme {
   return currentBiome;
 }
 
+export function setActiveBiome(id: BiomeTheme['id']): BiomeTheme {
+  const idx = BIOMES.findIndex((b) => b.id === id);
+  if (idx >= 0) {
+    biomeCursor = idx;
+    currentBiome = BIOMES[idx];
+  }
+  return currentBiome;
+}
+
 export function cycleNextBiome(): BiomeTheme {
   biomeCursor = (biomeCursor + 1) % BIOMES.length;
   currentBiome = BIOMES[biomeCursor];

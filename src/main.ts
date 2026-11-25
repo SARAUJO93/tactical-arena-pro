@@ -17,7 +17,7 @@ import { logWsEvent, recordTelemetryGift, renderTelemetry } from './systems/Tele
 import { escapeHtml } from './utils/helpers';
 import { SettingsPanel } from './ui/SettingsPanel';
 import { initInputShortcuts } from './ui/InputShortcuts';
-import { cycleNextBiome, getActiveBiome, getBiomeProgressText } from './config/biomes';
+import { cycleNextBiome, getActiveBiome, getBiomeProgressText, setActiveBiome } from './config/biomes';
 import { renderTeamFlagHtml } from './ui/FlagRenderer';
 import { NotificationDock } from './ui/NotificationDock';
 import { consumeTapRewards } from './utils/tapRewards';
@@ -39,6 +39,7 @@ import {
   getPreviousSeasonChampion,
   syncSeasonPassBadges,
 } from './systems/SeasonPass';
+import { getWeeklyEventForDate } from './systems/WeeklySchedule';
 
 const $ = (id: string) => document.getElementById(id)!;
 const notificationDock = new NotificationDock($);
@@ -199,11 +200,13 @@ function syncTimerPill(): void {
 
 let tickerIdx = 0;
 function updateOnboardingTicker(): void {
+  const weekly = getWeeklyEventForDate();
+  const goalLikes = factionGoals.getSnapshot('A').target;
   const tips = [
+    `${weekly.badge} ${weekly.title}`,
     `❤️ ${state.personalTapThreshold} Taps = Tropas`,
-    `🛡️ 150 Likes = Escudo de Bando`,
+    `🛡️ ${goalLikes} Likes = Escudo de Bando`,
     `🎟️ Sube tu Pase Gratis con Taps`,
-    `⚡ ${state.frenzyGoalLikes} Likes = Frenesí x2`,
   ];
   const tip = tips[tickerIdx % tips.length];
   tickerIdx++;
@@ -235,7 +238,11 @@ function pushNotificationDock(
 
 function announceActiveBiome(): void {
   const b = getActiveBiome();
-  pushNotificationDock(b.name, `Escenario ${getBiomeProgressText()}`, b.accent, '', '', b.icon, 'MAPA', 3000);
+  const weekly = getWeeklyEventForDate();
+  const sub = weekly.id !== 'regular'
+    ? `${weekly.title} · ${weekly.description}`
+    : `Escenario ${getBiomeProgressText()}`;
+  pushNotificationDock(b.name, sub, b.accent, '', '', b.icon, weekly.dayLabel, 3200);
 }
 
 function showCenterBanner(title: string, sub: string, color = '#FBBF24', avatarUrl = '', user = ''): void {
@@ -737,7 +744,11 @@ let victoryOverlayTimer: ReturnType<typeof setTimeout> | null = null;
 function triggerVictory(winner: TeamId): void {
   if (!state.roundActive) return;
 
-  const roundLog = finalizeRound(winner, { suddenDeath: state.suddenDeathActive });
+  const weekly = getWeeklyEventForDate();
+  const roundLog = finalizeRound(winner, {
+    suddenDeath: state.suddenDeathActive,
+    featured: weekly.isFeatured,
+  });
 
   state.frenzyActive = false; state.suddenDeathActive = false;
   endTakeovers();
@@ -830,9 +841,13 @@ function resetRound(): void {
   if (victoryOverlayTimer) clearTimeout(victoryOverlayTimer);
   endTakeovers();
   impactLimiter.reset();
+
+  const weekly = getWeeklyEventForDate();
+  factionGoals.setTargetLikes(weekly.factionGoalLikes);
   factionGoals.resetRound();
 
-  cycleNextBiome();
+  if (weekly.featuredBiomeId) setActiveBiome(weekly.featuredBiomeId);
+  else cycleNextBiome();
   beginRound(getActiveBiome().id);
 
   [state.teamA, state.teamB].forEach((t) => {
@@ -984,6 +999,9 @@ window.addEventListener('pointerdown', () => synth.unlock(), { passive: true });
 loadPersistentState();
 externalObservability.start();
 resetIfNeeded();
+const initialWeekly = getWeeklyEventForDate();
+factionGoals.setTargetLikes(initialWeekly.factionGoalLikes);
+if (initialWeekly.featuredBiomeId) setActiveBiome(initialWeekly.featuredBiomeId);
 settings.renderRosterChips();
 settings.renderGiftMapperTable();
 applyTeamUI();
@@ -994,7 +1012,7 @@ elixir.resetRound();
 synth.init();
 synth.applyMusicMode();
 announceActiveBiome();
-logWsEvent('Tactical Arena V3.2.0 listo · Fase A activa (Liga / Records).');
+logWsEvent(`Tactical Arena V3.2.0 listo · ${initialWeekly.title}.`);
 void registerOfflineCache();
 installErrorMonitoring();
 installBrowserLifecycle({

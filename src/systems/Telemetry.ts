@@ -2,6 +2,7 @@ import { bus } from '../core/EventBus';
 import { METEOR_COIN_STEP, state } from '../core/GameState';
 import { escapeHtml } from '../utils/helpers';
 import { getAvatarCacheSize, MAX_AVATAR_CACHE } from './AvatarCache';
+import { computeBalanceReport } from './BalanceAnalytics';
 
 export function logWsEvent(msg: string): void {
   const t = new Date().toLocaleTimeString('es-MX', { hour12: false });
@@ -83,6 +84,37 @@ export function renderTelemetry(): void {
         )
         .join('')
     : `<div style="color:#64748B;">Sin regalos aún.</div>`;
+
+  const balanceEl = document.getElementById('telBalanceReport');
+  if (balanceEl) {
+    const report = computeBalanceReport(state.roundLogs, state.giftSlots, state.telemetry.giftBreakdown);
+    const biomeRows = report.biomes
+      .map((b) => {
+        const stats = b.rounds > 0 ? `Norte ${b.teamAPct}% · ${b.rounds}r` : 'Sin rondas';
+        const alertTag = b.alert
+          ? `<span style="color:#FCA5A5;font-weight:800;"> · ⚠ ${escapeHtml(b.alert)}</span>`
+          : '';
+        return `<div style="display:flex;justify-content:space-between;background:rgba(255,255,255,0.04);padding:4px 7px;border-radius:6px;">
+          <span>${b.icon} ${escapeHtml(b.name)}</span>
+          <span class="tabular" style="color:#CBD5E1;">${stats}${alertTag}</span>
+        </div>`;
+      })
+      .join('');
+
+    const unusedText = report.unusedGifts.length
+      ? report.unusedGifts.map((g) => `${g.emoji} ${escapeHtml(g.display)} (${g.coins}🪙)`).join(' · ')
+      : 'Todos los regalos del catálogo tuvieron uso.';
+
+    balanceEl.innerHTML = `
+      <div style="display:flex;justify-content:space-between;color:#94A3B8;font-size:9px;margin-bottom:4px;">
+        <span>Rondas analizadas: <strong style="color:#F8FAFC;">${report.totalRounds}</strong></span>
+        <span>Muerte Súbita: <strong style="color:#FCA5A5;">${report.suddenDeathPct}%</strong></span>
+      </div>
+      ${biomeRows}
+      <div style="margin-top:5px;padding:5px 7px;border-radius:6px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.22);font-size:9px;color:#FDE68A;">
+        <strong>Sin uso en sesión:</strong> ${unusedText}
+      </div>`;
+  }
 
   $('telWsLog').innerHTML = state.telemetry.wsLog.length
     ? state.telemetry.wsLog.map((l) => `<div>${escapeHtml(l)}</div>`).join('')
