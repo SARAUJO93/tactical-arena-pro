@@ -128,6 +128,7 @@ interface OrbitalStrike {
   maxTimer: number;
   detonated: boolean;
   beamLife: number;
+  impactScale: number;
 }
 
 interface Meteor {
@@ -422,8 +423,9 @@ export class Simulation {
     }
   }
 
-  spawnOrbital(team: TeamId, user: string, avatarUrl: string): void {
+  spawnOrbital(team: TeamId, user: string, avatarUrl: string, impactScale = 1): void {
     const isA = team === 'A';
+    const safeScale = Number.isFinite(impactScale) ? Math.max(0.2, Math.min(1, impactScale)) : 1;
     this.orbitals.push({
       team,
       owner: user,
@@ -434,6 +436,7 @@ export class Simulation {
       maxTimer: 42,
       detonated: false,
       beamLife: 0,
+      impactScale: safeScale,
     });
   }
 
@@ -912,9 +915,9 @@ export class Simulation {
           state.shake = 18; state.screenFlash = 0.85; this.synth.playSFX('orbital_boom');
           this.spawnExplosion(orb.x, orb.y, orb.team === 'A' ? state.teamA.color : state.teamB.color, 'nuclear');
           for (const u of this.units) if (u.team === enemyTeam) u.hp = 0;
-          this.damageSideTower(enemyTeam, 0, 500);
-          this.damageSideTower(enemyTeam, 1, 500);
-          this.damageBase(enemyTeam, 650, this.safeCenterX, true);
+          this.damageSideTower(enemyTeam, 0, Math.round(500 * orb.impactScale));
+          this.damageSideTower(enemyTeam, 1, Math.round(500 * orb.impactScale));
+          this.damageBase(enemyTeam, Math.round(650 * orb.impactScale), this.safeCenterX, true);
         }
       } else if ((orb.beamLife -= ts) <= 0) this.orbitals.splice(i, 1);
     }

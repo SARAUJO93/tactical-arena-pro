@@ -26,6 +26,13 @@ import { installErrorMonitoring } from './monitoring/ErrorMonitor';
 import { ExternalObservability } from './monitoring/ExternalObservability';
 import { installBrowserLifecycle } from './app/BrowserLifecycle';
 import { registerOfflineCache } from './app/OfflineCache';
+import {
+  calculateGiftMvpPoints,
+  calculateUnderdogElixirBonus,
+  MVP_PARTICIPATION_POINTS,
+  RoundImpactLimiter,
+} from './systems/BalanceEconomy';
+import { PersonalProgressTracker } from './systems/PersonalProgress';
 
 const $ = (id: string) => document.getElementById(id)!;
 const notificationDock = new NotificationDock($);
@@ -33,6 +40,9 @@ const synth = new SynthEngine();
 const elixir = new ElixirSystem();
 const tikfinity = new TikFinityClient();
 const externalObservability = new ExternalObservability('3.2.0');
+const impactLimiter = new RoundImpactLimiter();
+const personalProgress = new PersonalProgressTracker();
+const lastJoinAnnounceAt = new Map<string, number>();
 
 const sim = new Simulation(
   $('arenaCanvas') as HTMLCanvasElement,
@@ -82,6 +92,11 @@ function updateBaseHUD(): void {
   $('hpPctB').textContent = `${Math.ceil(rB)}%`;
   $('hpBarA').style.width = `${rA}%`; $('hpTrailA').style.width = `${rA}%`;
   $('hpBarB').style.width = `${rB}%`; $('hpTrailB').style.width = `${rB}%`;
+
+  const aLeads = state.roundActive && state.teamA.hp > state.teamB.hp;
+  const bLeads = state.roundActive && state.teamB.hp > state.teamA.hp;
+  $('cardBaseA').classList.toggle('leading', aLeads);
+  $('cardBaseB').classList.toggle('leading', bLeads);
 }
 
 function updateFrenzyGaugeUI(): void {
@@ -113,14 +128,24 @@ function syncTimerPill(): void {
 
 let tickerIdx = 0;
 function updateOnboardingTicker(): void {
-  const msgs = [
-    `1. Escribe ${state.teamA.key} o ${state.teamB.key} en chat para elegir bando`,
-    `2. ❤️ ${state.personalTapThreshold} Tap Taps = +⚡ Elixir • ${state.frenzyGoalLikes} = Frenesí x2`,
-    `3. Derriba 1 torre lateral para exponer la base central`,
-    `4. ⚡ EMP frena elixir rival • 👾 Hack roba 3 tropas`,
+  const tips = [
+    `❤️ ${state.personalTapThreshold} Taps = Tropas`,
+    `Derriba 1 torre lateral`,
+    `⚡ ${state.frenzyGoalLikes} Likes = Frenesí x2`,
+    `Sube tu Rango con Taps`,
   ];
-  $('onboardingTicker').textContent = msgs[tickerIdx % msgs.length];
+  const tip = tips[tickerIdx % tips.length];
   tickerIdx++;
+
+  const keyA = escapeHtml(state.teamA.key);
+  const keyB = escapeHtml(state.teamB.key);
+  $('onboardingTicker').innerHTML =
+    `<span>ELIGE:</span>` +
+    `<span class="cta-key" style="background:${state.teamA.color};">${keyA}</span>` +
+    `<span>o</span>` +
+    `<span class="cta-key" style="background:${state.teamB.color};">${keyB}</span>` +
+    `<span class="cta-sep">·</span>` +
+    `<span class="cta-tip">${escapeHtml(tip)}</span>`;
 }
 setInterval(updateOnboardingTicker, 4000);
 
@@ -204,6 +229,7 @@ function renderTop3MVP(): void {
     const av = getAvatar(m.avatarUrl, m.user);
     const tCol = m.team === 'A' ? state.teamA.color : state.teamB.color;
     const pts = m.score >= 1000 ? `${(m.score / 1000).toFixed(1)}k` : String(m.score);
+    const rank = personalProgress.getRank(m.user, state.playerRecords[m.user]);
     return `<div class="mvp-item">
       <div style="position:relative;flex-shrink:0;">
         <img src="${av.dataUrl}" alt="" style="width:16px;height:16px;border-radius:50%;object-fit:cover;border:1.5px solid ${rings[idx]};display:block;" />
@@ -214,7 +240,10 @@ function renderTop3MVP(): void {
           <span style="width:5px;height:5px;border-radius:50%;background:${tCol};flex-shrink:0;"></span>
           <span>${escapeHtml(m.user.replace('@', '').slice(0, 6))}</span>
         </div>
-        <div class="tabular" style="font-size:7px;color:#94A3B8;">${pts}</div>
+        <div class="tabular" style="font-size:7px;color:#94A3B8;display:flex;align-items:center;">
+          <span>${pts}</span>
+          <span class="mvp-lvl">Nv.${rank.level}</span>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -292,18 +321,22 @@ function runNextTakeover(): void {
   const job = takeoverQueue.shift();
   if (!job || !state.roundActive) { endTakeovers(); return; }
   const enemyObj = job.team === 'A' ? state.teamB : state.teamA;
+  const { scale, useCount } = impactLimiter.consume(job.team, 'nuclear');
+  const scaleTag = useCount > 1 ? ` (${Math.round(scale * 100)}%)` : '';
+
   state.takeoverActive = true; state.timeScale = 0.25;
   synth.duck(3500); synth.playSFX('nuclear_siren');
   synth.speak(`${job.clean.replace('@', '')} lanzó ataque nuclear contra ${enemyObj.name}`);
   ($('tkAvatar') as HTMLImageElement).src = getAvatar(job.avatarUrl, job.clean).dataUrl;
   $('tkUser').textContent = job.clean;
-  $('tkSub').textContent = `${job.giftName.toUpperCase()} • OBJETIVO: ${enemyObj.name}`;
+  $('tkSub').textContent = `${job.giftName.toUpperCase()}${scaleTag} • OBJETIVO: ${enemyObj.name}`;
   $('whaleTakeover').classList.remove('hidden');
 
   takeoverTimer = setTimeout(() => {
     if (state.roundActive) {
-      sim.spawnOrbital(job.team, job.clean, job.avatarUrl);
-      elixir.addElixir(job.team, state.frenzyActive ? 5 : 3);
+      sim.spawnOrbital(job.team, job.clean, job.avatarUrl, scale);
+      const bonusElixir = Math.max(1, Math.round((state.frenzyActive ? 5 : 3) * scale));
+      elixir.addElixir(job.team, bonusElixir);
     }
     if (takeoverQueue.length && state.roundActive) runNextTakeover();
     else endTakeovers();
@@ -325,20 +358,25 @@ bus.on('action:instant', ({ team, kind, user, avatarUrl, giftName, mult = 1 }) =
   } else if (kind === 'EMP') {
     const enemyTeam: TeamId = team === 'A' ? 'B' : 'A';
     const enemyBase = enemyTeam === 'A' ? state.teamA : state.teamB;
-    const dur = state.frenzyActive ? 14 : 10;
+    const { scale, useCount } = impactLimiter.consume(team, 'emp');
+    const dur = Math.max(3, Math.round((state.frenzyActive ? 14 : 10) * scale));
+    const slowSec = Math.max(2, Math.round(6 * scale));
     enemyBase.empTimer = Math.min(18, enemyBase.empTimer + dur);
     sim.applyEmpToUnits(enemyTeam, dur);
-    elixir.applyEmpSlow(enemyTeam, 6);
+    elixir.applyEmpSlow(enemyTeam, slowSec);
     synth.duck(2400); synth.playSFX('emp'); state.shake = Math.max(state.shake, 7);
-    showCenterBanner(`⚡ PULSO EMP (${enemyBase.empTimer}s)`, `${user} apagó torretas de ${enemyBase.name}`, '#22D3EE', avatarUrl, user);
+    const capTag = useCount > 1 ? ` · ${Math.round(scale * 100)}%` : '';
+    showCenterBanner(`⚡ PULSO EMP (${enemyBase.empTimer}s${capTag})`, `${user} apagó torretas de ${enemyBase.name}`, '#22D3EE', avatarUrl, user);
   } else if (kind === 'CYBER_HACK') {
-    const maxSteal = state.frenzyActive ? 4 : 3;
+    const { scale, useCount } = impactLimiter.consume(team, 'hack');
+    const maxSteal = Math.max(1, Math.round((state.frenzyActive ? 4 : 3) * scale));
     const stolen = sim.applyCyberHack(team, user, avatarUrl, maxSteal);
     const missing = Math.max(0, maxSteal - stolen);
     if (missing > 0) elixir.addElixir(team, missing * 2);
     synth.duck(2400); synth.playSFX('hack');
+    const capTag = useCount > 1 ? ` (${Math.round(scale * 100)}%)` : '';
     const detail = missing > 0 ? `robó ${stolen} y recuperó +${missing * 2}⚡` : `robó ${stolen} unidades enemigas`;
-    showCenterBanner('👾 CYBER HACK', `${user} ${detail}`, '#C084FC', avatarUrl, user);
+    showCenterBanner(`👾 CYBER HACK${capTag}`, `${user} ${detail}`, '#C084FC', avatarUrl, user);
   } else if (kind === 'NUCLEAR') {
     const clean = user.startsWith('@') ? user : `@${user}`;
     takeoverQueue.push({ team, clean, avatarUrl, giftName: giftName || 'Nuclear' });
@@ -350,10 +388,32 @@ bus.on('action:instant', ({ team, kind, user, avatarUrl, giftName, mult = 1 }) =
   }
 });
 
-bus.on('game:chat', ({ user, comment }) => registerChatAlignment(user, comment));
+bus.on('game:chat', ({ user, comment, avatarUrl }) => {
+  const aligned = registerChatAlignment(user, comment);
+  if (!aligned || !state.roundActive) return;
+  const clean = user.startsWith('@') ? user : `@${user}`;
+  const now = Date.now();
+  if (now - (lastJoinAnnounceAt.get(clean) || 0) < 15000) return;
+  lastJoinAnnounceAt.set(clean, now);
+  if (lastJoinAnnounceAt.size > 300) {
+    const oldest = lastJoinAnnounceAt.keys().next().value;
+    if (oldest !== undefined) lastJoinAnnounceAt.delete(oldest);
+  }
+  const tObj = aligned === 'A' ? state.teamA : state.teamB;
+  pushNotificationDock(
+    `${clean} → ${tObj.name}`,
+    `¡Bando elegido! Tus taps ahora apoyan a ${tObj.key}`,
+    tObj.color,
+    avatarUrl,
+    clean,
+    '🎯',
+    'BANDO',
+    2100
+  );
+});
 
 // =========================================================================
-// TAP · FASE A
+// TAP · FASE A + PROGRESO PERSONAL
 // =========================================================================
 bus.on('game:tap', ({ user, count, avatarUrl, forcedTeam, isDemo = false }) => {
   if (!state.roundActive) return;
@@ -368,7 +428,16 @@ bus.on('game:tap', ({ user, count, avatarUrl, forcedTeam, isDemo = false }) => {
     trackTapForViewer(clean, avatarUrl, team, count);
   }
 
+  const progress = personalProgress.recordAction(
+    clean,
+    'tap',
+    count,
+    0,
+    isDemo ? undefined : state.playerRecords[clean]
+  );
+
   if (team) {
+    const tObj = team === 'A' ? state.teamA : state.teamB;
     const tapResult = consumeTapRewards(
       state.viewerLikes.get(clean) || 0,
       count,
@@ -377,10 +446,34 @@ bus.on('game:tap', ({ user, count, avatarUrl, forcedTeam, isDemo = false }) => {
     for (let i = 0; i < tapResult.rewardCount; i++) {
       elixir.addElixir(team, 0.6);
       elixir.enqueueOrder({ team, kind: 'INFANTRY', priority: 2, user: clean, avatarUrl, isTapBadge: true });
-      addMVPPoints(clean, team, avatarUrl, 15, isDemo);
+      addMVPPoints(clean, team, avatarUrl, MVP_PARTICIPATION_POINTS.TAP_BATCH, isDemo);
       synth.playSFX('tap');
     }
     state.viewerLikes.set(clean, Math.min(tapResult.residue, state.personalTapThreshold * 2));
+
+    if (progress.leveledUp) {
+      pushNotificationDock(
+        `⭐ ${clean} · Nv.${progress.level} ${progress.title}`,
+        `Progreso personal: ${progress.xp} XP (${progress.progressPct}%)`,
+        '#FBBF24',
+        avatarUrl,
+        clean,
+        '⭐',
+        'RANGO',
+        2600
+      );
+    } else if (progress.milestoneLabel) {
+      pushNotificationDock(
+        `${clean} · ${progress.milestoneLabel}`,
+        `Nv.${progress.level} ${progress.title} · Apoyando a ${tObj.key}`,
+        tObj.color,
+        avatarUrl,
+        clean,
+        '❤️',
+        'META',
+        2200
+      );
+    }
   }
   if (!state.frenzyActive) {
     state.globalTapCount += count;
@@ -390,7 +483,7 @@ bus.on('game:tap', ({ user, count, avatarUrl, forcedTeam, isDemo = false }) => {
 });
 
 // =========================================================================
-// FOLLOW · FASE A
+// FOLLOW · FASE A + PROGRESO PERSONAL
 // =========================================================================
 bus.on('game:follow', ({ user, avatarUrl, isDemo = false }) => {
   if (!state.roundActive) return;
@@ -402,16 +495,23 @@ bus.on('game:follow', ({ user, avatarUrl, isDemo = false }) => {
   const team = resolveUserTeam(clean);
 
   if (!isDemo) trackFollowForViewer(clean, avatarUrl);
+  const progress = personalProgress.recordAction(
+    clean,
+    'follow',
+    1,
+    0,
+    isDemo ? undefined : state.playerRecords[clean]
+  );
 
   elixir.addElixir(team, 0.8);
   elixir.enqueueOrder({ team, kind: 'INFANTRY', priority: 2, user: clean, avatarUrl });
-  addMVPPoints(clean, team, avatarUrl, 20, isDemo);
-  showLastCommander(clean, avatarUrl, `¡siguió! → +⚡ y Soldados`, '#34D399');
+  addMVPPoints(clean, team, avatarUrl, MVP_PARTICIPATION_POINTS.FOLLOW, isDemo);
+  showLastCommander(clean, avatarUrl, `¡siguió! → +⚡ Soldados · Nv.${progress.level}`, '#34D399');
   synth.playSFX('follow');
 });
 
 // =========================================================================
-// SHARE · FASE A
+// SHARE · FASE A + PROGRESO PERSONAL
 // =========================================================================
 bus.on('game:share', ({ user, avatarUrl, isDemo = false }) => {
   if (!state.roundActive) return;
@@ -423,15 +523,28 @@ bus.on('game:share', ({ user, avatarUrl, isDemo = false }) => {
   const team = resolveUserTeam(clean);
 
   if (!isDemo) trackShareForViewer(clean, avatarUrl);
+  const progress = personalProgress.recordAction(
+    clean,
+    'share',
+    1,
+    0,
+    isDemo ? undefined : state.playerRecords[clean]
+  );
 
   elixir.addElixir(team, 1.5);
   elixir.enqueueOrder({ team, kind: 'JET', priority: 2, user: clean, avatarUrl });
-  addMVPPoints(clean, team, avatarUrl, 50, isDemo);
-  showCenterBanner('✈️ ATAQUE POR COMPARTIR', `${clean} → Jet en cola para ${(team === 'A' ? state.teamA : state.teamB).name}`, '#38BDF8', avatarUrl, clean);
+  addMVPPoints(clean, team, avatarUrl, MVP_PARTICIPATION_POINTS.SHARE, isDemo);
+  showCenterBanner(
+    '✈️ ATAQUE POR COMPARTIR',
+    `${clean} (Nv.${progress.level}) → Jet para ${(team === 'A' ? state.teamA : state.teamB).name}`,
+    '#38BDF8',
+    avatarUrl,
+    clean
+  );
 });
 
 // =========================================================================
-// GIFT · FASE A
+// GIFT · FASE A + ECONOMÍA BALANCEADA + PROGRESO PERSONAL
 // =========================================================================
 bus.on('game:gift', ({ team, tier, delta, user, giftName, avatarUrl, coins, isDemo = false }) => {
   if (!state.roundActive || delta <= 0) return;
@@ -441,12 +554,43 @@ bus.on('game:gift', ({ team, tier, delta, user, giftName, avatarUrl, coins, isDe
   }
   const clean = user.startsWith('@') ? user : `@${user}`;
   state.viewerTeams.set(clean, team);
-  addMVPPoints(clean, team, avatarUrl, Math.max(10, (coins || 1) * 10) * delta, isDemo);
+  addMVPPoints(clean, team, avatarUrl, calculateGiftMvpPoints(coins || 1, delta), isDemo);
 
   if (!isDemo) trackGiftForViewer(clean, avatarUrl, team, delta, coins || 1);
+  const progress = personalProgress.recordAction(
+    clean,
+    'gift',
+    delta,
+    coins || 1,
+    isDemo ? undefined : state.playerRecords[clean]
+  );
+
+  const underdogTeam: TeamId = state.teamA.hp <= state.teamB.hp ? 'A' : 'B';
+  if (team !== underdogTeam) {
+    const underdogBonus = calculateUnderdogElixirBonus(tier, delta);
+    if (underdogBonus > 0) {
+      elixir.addElixir(underdogTeam, underdogBonus);
+      if (tier === 4 || tier === 6 || tier === 7) {
+        const uY = underdogTeam === 'A' ? sim.baseAY + 24 : sim.baseBY - 24;
+        sim.pushBadge(
+          sim.safeCenterX,
+          uY,
+          `+${underdogBonus.toFixed(1)}⚡ UNDERDOG`,
+          '#34D399',
+          underdogTeam === 'A' ? 0.45 : -0.45
+        );
+      }
+    }
+  }
 
   const tObj = team === 'A' ? state.teamA : state.teamB;
-  showLastCommander(clean, avatarUrl, `${delta > 1 ? `x${delta} ` : ''}${giftName}${state.frenzyActive ? ' ⚡x2' : ''}`, tObj.color);
+  const rankSuffix = progress.leveledUp ? ` · ⭐ Nv.${progress.level}` : ` · Nv.${progress.level}`;
+  showLastCommander(
+    clean,
+    avatarUrl,
+    `${delta > 1 ? `x${delta} ` : ''}${giftName}${state.frenzyActive ? ' ⚡x2' : ''}${rankSuffix}`,
+    tObj.color
+  );
 
   if (tier === 1) {
     for (let i = 0; i < delta; i++) {
@@ -581,6 +725,7 @@ function resetRound(): void {
   if (restartTimer) clearInterval(restartTimer);
   if (victoryOverlayTimer) clearTimeout(victoryOverlayTimer);
   endTakeovers();
+  impactLimiter.reset();
 
   cycleNextBiome();
   beginRound(getActiveBiome().id);
@@ -617,6 +762,8 @@ function resetSession(): void {
   state.teamA.wins = 0; state.teamA.streak = 0;
   state.teamB.wins = 0; state.teamB.streak = 0;
 
+  personalProgress.resetSession();
+  lastJoinAnnounceAt.clear();
   resetSessionState();
 
   logWsEvent('Sesión y telemetría reiniciadas.');

@@ -206,7 +206,7 @@ html, body {
   top: 10.4%;
   left: 3%;
   right: 13%;
-  height: 22px;
+  height: 24px;
   z-index: 27;
   display: flex;
   align-items: center;
@@ -224,15 +224,15 @@ html, body {
   -webkit-backdrop-filter: blur(16px);
 }
 .notification-visual {
-  width: 16px; height: 16px; flex: 0 0 16px; display: grid; place-items: center;
+  width: 17px; height: 17px; flex: 0 0 17px; display: grid; place-items: center;
   border-radius: 50%; background: rgba(255, 255, 255, 0.09); font-size: 10px; overflow: hidden;
 }
 #notificationAvatar { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 .notification-copy { flex: 1 1 auto; min-width: 0; overflow: hidden; }
 .notification-line { display: flex; align-items: baseline; gap: 5px; white-space: nowrap; overflow: hidden; }
-#notificationTitle { color: #ffd166; font-size: 7.2px; font-weight: 800; max-width: 48%; overflow: hidden; text-overflow: ellipsis; }
-#notificationSub { color: rgba(245, 249, 255, 0.9); font-size: 7px; overflow: hidden; text-overflow: ellipsis; }
-#notificationTag { color: #a9bfd1; font-size: 5.5px; font-weight: 800; letter-spacing: 0.12em; padding-left: 5px; border-left: 1px solid rgba(255, 255, 255, 0.16); }
+#notificationTitle { color: #ffd166; font-size: 7.8px; font-weight: 800; max-width: 48%; overflow: hidden; text-overflow: ellipsis; }
+#notificationSub { color: rgba(245, 249, 255, 0.94); font-size: 7.4px; overflow: hidden; text-overflow: ellipsis; }
+#notificationTag { color: #a9bfd1; font-size: 5.8px; font-weight: 800; letter-spacing: 0.12em; padding-left: 5px; border-left: 1px solid rgba(255, 255, 255, 0.16); }
 .notification-progress {
   position: absolute; left: 0; bottom: 0; height: 2px; width: 100%;
   background: var(--notification-accent, #5ac8fa); transform-origin: left center;
@@ -267,17 +267,41 @@ html, body {
 
 #onboardingTicker {
   width: 100%;
-  height: 22px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 5px;
   border-radius: 9px;
   padding: 0 8px;
   text-align: center;
-  font-size: 8.2px;
-  font-weight: 700;
-  color: #E2E8F0;
+  font-size: 8.4px;
+  font-weight: 800;
+  color: #F8FAFC;
+  border-color: rgba(251, 191, 36, 0.32);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cta-key {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #030712;
+  line-height: 1.2;
+}
+.cta-sep {
+  color: rgba(148, 163, 184, 0.7);
+  font-weight: 700;
+}
+.cta-tip {
+  color: #CBD5E1;
+  font-size: 7.8px;
+  font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -308,20 +332,37 @@ html, body {
   flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px;
   background: rgba(255, 255, 255, 0.06); border-radius: 7px; padding: 2px 3px; overflow: hidden;
 }
+.mvp-lvl {
+  font-size: 6.5px;
+  font-weight: 900;
+  color: #FDE047;
+  background: rgba(251, 191, 36, 0.16);
+  padding: 0 3px;
+  border-radius: 3px;
+  margin-left: 2px;
+}
 
-.base-card { border-radius: 10px; padding: 3px 8px; transition: border-color 0.25s, box-shadow 0.25s; }
+.base-card { border-radius: 10px; padding: 4px 8px; transition: border-color 0.25s, box-shadow 0.25s; }
+.base-card.leading { border-color: rgba(251, 191, 36, 0.62); box-shadow: 0 0 14px rgba(251, 191, 36, 0.22); }
 .base-card.panic { border-color: rgba(239, 68, 68, 0.92); box-shadow: 0 0 18px rgba(239, 68, 68, 0.44); }
 .base-card.emp-hit { border-color: rgba(34, 211, 238, 0.95); box-shadow: 0 0 18px rgba(34, 211, 238, 0.45); }
-.base-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; gap: 4px; }
+.base-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; gap: 4px; }
 .base-id { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; }
-.base-name { font-size: 10px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tag-pill { font-size: 7px; font-weight: 800; padding: 1px 4px; border-radius: 5px; background: rgba(255,255,255,0.12); color: #E2E8F0; text-transform: uppercase; flex-shrink: 0; }
+.base-name { font-size: 10.5px; font-weight: 900; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#hpTextA, #hpTextB { font-size: 11.5px; font-weight: 900; color: #FFFFFF; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85); }
+#hpPctA, #hpPctB { font-size: 10px !important; font-weight: 900; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75); }
+.tag-pill { font-size: 7px; font-weight: 800; padding: 1px 4px; border-radius: 5px; background: rgba(255,255,255,0.14); color: #F1F5F9; text-transform: uppercase; flex-shrink: 0; }
 .streak-pill { background: rgba(249, 115, 22, 0.28); border: 1px solid rgba(251, 146, 60, 0.6); color: #FED7AA; }
 .shield-pill { background: rgba(34, 211, 238, 0.25); border: 1px solid rgba(103, 232, 249, 0.6); color: #CFFAFE; }
 .emp-pill { background: rgba(6, 182, 212, 0.30); border: 1px solid #67E8F9; color: #ECFEFF; }
-.hp-track { width: 100%; height: 5.5px; background: rgba(255, 255, 255, 0.14); border-radius: 999px; overflow: hidden; position: relative; }
-.hp-trail { position: absolute; inset: 0 auto 0 0; background: rgba(255, 255, 255, 0.42); border-radius: 999px; transition: width 0.45s ease-out; }
-.hp-fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px; transition: width 0.15s ease-out; }
+.hp-track {
+  width: 100%; height: 8px;
+  background: rgba(2, 6, 23, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px; overflow: hidden; position: relative;
+}
+.hp-trail { position: absolute; inset: 0 auto 0 0; background: rgba(255, 255, 255, 0.48); border-radius: 999px; transition: width 0.45s ease-out; }
+.hp-fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px; transition: width 0.15s ease-out; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35); }
 
 .elixir-row { display: flex; align-items: center; gap: 5px; margin-top: 3px; }
 .elixir-track {
