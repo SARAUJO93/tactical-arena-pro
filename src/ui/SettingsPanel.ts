@@ -1,6 +1,6 @@
 import { TeamId } from '../core/EventBus';
 import {
-  LIGAMX_ROSTER, makeBaseState, savePersistentState, state, TeamPreset, WORLD_ROSTER,
+  LIGAMX_ROSTER, makeBaseState, MEXICO_CITIES_ROSTER, savePersistentState, state, TeamPreset, WORLD_ROSTER,
   getStandings, getTopPlayers, getTopGifters, getRecentRounds,
   exportPersistentState, importPersistentState,
   listPersistenceSnapshots, restorePersistenceSnapshot,
@@ -742,6 +742,7 @@ export class SettingsPanel {
     });
     $('btnPresetWorld').addEventListener('click', () => this.applyRosterPreset(WORLD_ROSTER));
     $('btnPresetLigaMX').addEventListener('click', () => this.applyRosterPreset(LIGAMX_ROSTER));
+    $('btnPresetMexicoCities').addEventListener('click', () => this.applyRosterPreset(MEXICO_CITIES_ROSTER));
     $('btnAddRoster').addEventListener('click', () => {
       const flagInp = $('inAddFlag') as HTMLInputElement;
       const nameInp = $('inAddName') as HTMLInputElement;

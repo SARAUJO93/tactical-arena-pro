@@ -7,6 +7,8 @@ import {
   makeBaseState,
   PERSISTENCE_SCHEMA_VERSION,
   STORAGE_KEY,
+  LIGAMX_ROSTER,
+  MEXICO_CITIES_ROSTER,
   exportPersistentState,
   importPersistentState,
   listPersistenceSnapshots,
@@ -71,6 +73,27 @@ describe('Fase 2 - ciclo de round', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.useRealTimers();
+  });
+
+  it('ofrece 50 selecciones con claves únicas en el preset mundial', () => {
+    expect(WORLD_ROSTER).toHaveLength(50);
+    expect(new Set(WORLD_ROSTER.map((team) => team.key)).size).toBe(50);
+    expect(WORLD_ROSTER.some((team) => team.key === 'MX')).toBe(true);
+    expect(WORLD_ROSTER.some((team) => team.key === 'AR')).toBe(true);
+  });
+
+  it('ofrece los 18 equipos de Liga MX con claves únicas', () => {
+    expect(LIGAMX_ROSTER).toHaveLength(18);
+    expect(new Set(LIGAMX_ROSTER.map((team) => team.key)).size).toBe(18);
+    expect(LIGAMX_ROSTER.some((team) => team.key === 'AME')).toBe(true);
+    expect(LIGAMX_ROSTER.some((team) => team.key === 'TIG')).toBe(true);
+  });
+
+  it('ofrece 50 ciudades mexicanas con claves únicas', () => {
+    expect(MEXICO_CITIES_ROSTER).toHaveLength(50);
+    expect(new Set(MEXICO_CITIES_ROSTER.map((team) => team.key)).size).toBe(50);
+    expect(MEXICO_CITIES_ROSTER.some((team) => team.key === 'MEX-CDMX')).toBe(true);
+    expect(MEXICO_CITIES_ROSTER.some((team) => team.key === 'MEX-MTY')).toBe(true);
   });
 
   it('reinicia el estado local al comenzar una ronda', () => {
