@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.0.0 - 2026-11-24
+
+- Added deterministic damage validation and resilience statistics.
+- Added persistence snapshot pruning.
+- Added bounded external collector delivery timeouts.
+- Added physical-resilience unit coverage.
+
 ## 2.9.0 - 2026-11-24
 
 - Added immediate external delivery when pilot observability starts.

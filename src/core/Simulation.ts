@@ -161,6 +161,24 @@ interface ConfettiPiece {
 
 const CAPS = { particles: 220, smoke: 80, shockwaves: 24, scars: 80, badges: 40 };
 
+export interface ResilienceStats {
+  unitCount: number;
+  jetCount: number;
+  projectileCount: number;
+  visualEffectCount: number;
+}
+
+export function calculateFallbackDamage(
+  rawAmount: number,
+  dmgMultiplier: number,
+  frenzyActive: boolean
+): number {
+  if (!Number.isFinite(rawAmount) || rawAmount < 0) return 0;
+  if (!Number.isFinite(dmgMultiplier) || dmgMultiplier < 0) return 0;
+  const multiplier = frenzyActive ? dmgMultiplier * 2 : dmgMultiplier;
+  return Math.max(0, Math.round(rawAmount * multiplier));
+}
+
 export class Simulation {
   private ctx: CanvasRenderingContext2D;
   private biomeRenderer = new BiomeRenderer();
@@ -277,6 +295,20 @@ export class Simulation {
     let n = 0;
     for (let i = 0; i < this.jets.length; i++) if (this.jets[i].team === team) n++;
     return n;
+  }
+
+  getResilienceStats(): ResilienceStats {
+    return {
+      unitCount: this.units.length,
+      jetCount: this.jets.length,
+      projectileCount: this.projectiles.length,
+      visualEffectCount:
+        this.particles.length +
+        this.smokePlumes.length +
+        this.shockwaves.length +
+        this.scars.length +
+        this.floatBadges.length,
+    };
   }
 
   clearEntities(): void {

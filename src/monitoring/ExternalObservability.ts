@@ -146,14 +146,18 @@ export class ExternalObservability {
     payload.sessionId = this.sessionId;
     this.lastAttemptAt = Date.now();
     const attemptStartedAt = performance.now();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'omit',
         keepalive: true,
+        signal: controller.signal,
         body: JSON.stringify(payload),
       });
+      clearTimeout(timeoutId);
       if (response.ok) {
         this.status = 'sent';
         this.lastSuccessAt = Date.now();

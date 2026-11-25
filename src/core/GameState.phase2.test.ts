@@ -11,6 +11,7 @@ import {
   importPersistentState,
   listPersistenceSnapshots,
   restorePersistenceSnapshot,
+  prunePersistenceSnapshots,
   recordGift,
   resetSession,
   saveNow,
@@ -238,5 +239,13 @@ describe('Fase 2 - ciclo de round', () => {
     expect(snapshot).toBeDefined();
     expect(restorePersistenceSnapshot(snapshot!.key)).toBe(true);
     expect(state.personalTapThreshold).toBe(35);
+  });
+
+  it('limita y poda snapshots antiguos', () => {
+    for (let i = 1; i <= 4; i++) {
+      localStorage.setItem(`${STORAGE_KEY}_backup_${i}`, '{}');
+    }
+    expect(prunePersistenceSnapshots(2)).toBeGreaterThanOrEqual(2);
+    expect(listPersistenceSnapshots().length).toBeLessThanOrEqual(2);
   });
 });

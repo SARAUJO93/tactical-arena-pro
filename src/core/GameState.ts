@@ -199,6 +199,10 @@ export interface GlobalRecords {
 export const MAX_ROUND_LOGS = 500;
 export const MAX_PLAYER_RECORDS = 200;
 export const MAX_SEASON_HISTORY = 12;
+export const MAX_ERROR_LOG_ENTRIES = 40;
+export const MAX_WS_LOG_ENTRIES = 40;
+export const MAX_STRUCTURED_LOG_ENTRIES = 40;
+export const MAX_PERSISTENCE_SNAPSHOTS = 10;
 export const SEASON_DURATION_DAYS = 28;
 export const ELO_INITIAL = 1500;
 export const ELO_K_FACTOR = 32;
@@ -1002,7 +1006,7 @@ export function listPersistenceSnapshots(): PersistenceSnapshot[] {
       });
     }
   }
-  return snapshots.sort((a, b) => b.ts - a.ts);
+  return snapshots.sort((a, b) => b.ts - a.ts).slice(0, MAX_PERSISTENCE_SNAPSHOTS);
 }
 
 export function restorePersistenceSnapshot(key: string): boolean {
@@ -1021,6 +1025,15 @@ export function restorePersistenceSnapshot(key: string): boolean {
   localStorage.setItem(STORAGE_KEY, snapshotRaw);
   loadPersistentState();
   return true;
+}
+
+export function prunePersistenceSnapshots(limit = MAX_PERSISTENCE_SNAPSHOTS): number {
+  const snapshots = listPersistenceSnapshots();
+  const removeCount = Math.max(0, snapshots.length - Math.max(1, limit));
+  for (const snapshot of snapshots.slice(-removeCount)) {
+    try { localStorage.removeItem(snapshot.key); } catch { /* noop */ }
+  }
+  return removeCount;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
