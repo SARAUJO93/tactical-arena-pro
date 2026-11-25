@@ -3,9 +3,9 @@ import { bus, DeployOrder, OrderPriority, TeamId, UnitOrderKind } from '../core/
 export const ELIXIR_CONFIG = {
   MAX_ELIXIR: 10,
   START_ELIXIR: 5,
-  BASE_REGEN_PER_SEC: 0.45,
-  DEPLOY_GCD_SEC: 0.65,
-  AUTO_DEPLOY_THRESHOLD: 7.8,
+  BASE_REGEN_PER_SEC: 0.55,
+  DEPLOY_GCD_SEC: 0.6,
+  AUTO_DEPLOY_THRESHOLD: 6.8,
   MAX_UNITS_PER_TEAM: 32,
   MAX_JETS_PER_TEAM: 6,
   MAX_SOCIAL_QUEUE: 3,

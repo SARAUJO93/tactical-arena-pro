@@ -13,7 +13,7 @@ import {
 export const STORAGE_KEY = 'tactical_arena_v2_3_league';
 export const PERSISTENCE_SCHEMA_VERSION = 5;
 export const MAX_BASE_HP = 3000;
-export const MAX_SIDE_DEFENSE_HP = 1350;
+export const MAX_SIDE_DEFENSE_HP = 1050;
 export const ROUND_DURATION_SEC = 180;
 export const SUDDEN_DEATH_DURATION_SEC = 60;
 export const METEOR_COIN_STEP = 500;

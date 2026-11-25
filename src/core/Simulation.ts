@@ -345,11 +345,11 @@ export class Simulation {
           veteranRank: order.veteranRank,
           x: Math.max(this.safeLeft + 10, Math.min(this.safeRight - 10, laneX + (i - 1) * 9)),
           y: spawnY + (Math.random() - 0.5) * 6,
-          hp: Math.round(48 * vetMultHp),
-          maxHp: Math.round(48 * vetMultHp),
+          hp: Math.round(56 * vetMultHp),
+          maxHp: Math.round(56 * vetMultHp),
           speed: 1.0 + Math.random() * 0.12,
           range: 54,
-          damage: Math.round(11 * vetMultDmg),
+          damage: Math.round(13 * vetMultDmg),
           splash: 0,
           fireRate: 24,
           cooldown: Math.floor(Math.random() * 10),
@@ -384,11 +384,11 @@ export class Simulation {
         veteranRank: order.veteranRank,
         x: laneX,
         y: isA ? this.baseAY + 24 : this.baseBY - 24,
-        hp: Math.round(320 * vetMultHp),
-        maxHp: Math.round(320 * vetMultHp),
-        speed: 0.62,
+        hp: Math.round(360 * vetMultHp),
+        maxHp: Math.round(360 * vetMultHp),
+        speed: 0.68,
         range: 82,
-        damage: Math.round(48 * vetMultDmg),
+        damage: Math.round(58 * vetMultDmg),
         splash: 36,
         fireRate: 54,
         cooldown: 10,
@@ -652,12 +652,12 @@ export class Simulation {
       if (target) {
         sd.angle = Math.atan2(target.y - pos.y, target.x - pos.x);
         if (sd.cooldown <= 0 && state.roundActive) {
-          sd.cooldown = 30;
+          sd.cooldown = 36;
           this.projectiles.push({
             team, type: 'turret',
             x: pos.x + Math.cos(sd.angle) * 10, y: pos.y + Math.sin(sd.angle) * 10,
             vx: Math.cos(sd.angle) * 8.2, vy: Math.sin(sd.angle) * 8.2,
-            damage: 12, splash: 0, color: baseObj.color, life: 28,
+            damage: 10, splash: 0, color: baseObj.color, life: 28,
           });
         }
       }
@@ -678,12 +678,12 @@ export class Simulation {
         const ang = Math.atan2(target.y - ty, target.x - tx);
         baseObj.turretAngles[idx] = ang;
         if (baseObj.turretCooldowns[idx] <= 0 && state.roundActive) {
-          baseObj.turretCooldowns[idx] = 26;
+          baseObj.turretCooldowns[idx] = 34;
           this.projectiles.push({
             team, type: 'turret',
             x: tx + Math.cos(ang) * 9, y: ty + Math.sin(ang) * 9,
             vx: Math.cos(ang) * 8.2, vy: Math.sin(ang) * 8.2,
-            damage: 10, splash: 0, color: baseObj.color, life: 26,
+            damage: 8, splash: 0, color: baseObj.color, life: 26,
           });
         }
       }
@@ -892,10 +892,10 @@ export class Simulation {
         for (const u of this.units) if (u.team === enemyTeam && distSq(u.x, u.y, b.tx, b.ty) < 58 * 58) u.hp -= 70 * dmgMult;
         ([0, 1] as const).forEach((lane) => {
           const tp = this.getSideTowerPos(enemyTeam, lane);
-          if (distSq(tp.x, tp.y, b.tx, b.ty) < 58 * 58) this.damageSideTower(enemyTeam, lane, 85);
+          if (distSq(tp.x, tp.y, b.tx, b.ty) < 58 * 58) this.damageSideTower(enemyTeam, lane, 115);
         });
         const eBaseY = enemyTeam === 'A' ? this.baseAY : this.baseBY;
-        if (distSq(this.safeCenterX, eBaseY, b.tx, b.ty) < 88 * 88) this.damageBase(enemyTeam, 55, b.tx);
+        if (distSq(this.safeCenterX, eBaseY, b.tx, b.ty) < 88 * 88) this.damageBase(enemyTeam, 80, b.tx);
         this.bombs.splice(i, 1);
       }
     }

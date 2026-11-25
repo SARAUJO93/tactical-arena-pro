@@ -110,6 +110,11 @@ bus.on('elixir:updated', ({ team, elixir: val, maxElixir, queueLength }) => {
 
 bus.on('elixir:deploy', (order) => sim.deployOrder(order));
 
+function isOnlyCoreRemaining(team: TeamId): boolean {
+  const base = team === 'A' ? state.teamA : state.teamB;
+  return base.sideDefenses[0].hp <= 0 && base.sideDefenses[1].hp <= 0;
+}
+
 function updateBaseHUD(): void {
   const rA = (state.teamA.hp / MAX_BASE_HP) * 100;
   const rB = (state.teamB.hp / MAX_BASE_HP) * 100;
@@ -159,29 +164,49 @@ function updateFactionHUD(): void {
 
 function triggerFactionGoalReward(team: TeamId): void {
   const base = team === 'A' ? state.teamA : state.teamB;
-  const heal = 300;
-  base.hp = Math.min(MAX_BASE_HP, base.hp + heal);
-  base.shieldHp = Math.max(base.shieldHp, 350);
-  base.shieldTimer = Math.max(base.shieldTimer, 10);
-  elixir.addElixir(team, 1.5);
-
   const by = team === 'A' ? sim.baseAY : sim.baseBY;
-  sim.pushShockwave(sim.safeCenterX, by, 76, '#67E8F9', 3);
-  sim.pushBadge(sim.safeCenterX, by + (team === 'A' ? 24 : -24), '🛡️ ESCUDO DE BANDO', '#67E8F9');
-  synth.playSFX('shield');
-  updateBaseHUD();
-  updatePanicAlerts();
 
-  pushNotificationDock(
-    `🛡️ META DE ${base.name} COMPLETADA`,
-    `Escudo de Bando activo (+${heal} HP y +1.5⚡)`,
-    base.color,
-    '',
-    '',
-    '🛡️',
-    'BANDO',
-    2800
-  );
+  if (isOnlyCoreRemaining(team)) {
+    const heal = 150;
+    base.hp = Math.min(MAX_BASE_HP, base.hp + heal);
+    base.shieldHp = Math.max(base.shieldHp, 300);
+    base.shieldTimer = 3;
+    elixir.addElixir(team, 1.5);
+
+    sim.pushShockwave(sim.safeCenterX, by, 76, '#67E8F9', 3);
+    sim.pushBadge(sim.safeCenterX, by + (team === 'A' ? 24 : -24), '🛡️ ESCUDO 3s', '#67E8F9');
+    synth.playSFX('shield');
+    updateBaseHUD();
+    updatePanicAlerts();
+
+    pushNotificationDock(
+      `🛡️ META DE ${base.name} COMPLETADA`,
+      `Escudo de emergencia (3s) +${heal} HP y +1.5⚡`,
+      base.color,
+      '',
+      '',
+      '🛡️',
+      'BANDO',
+      2800
+    );
+  } else {
+    elixir.addElixir(team, 2.0);
+    elixir.enqueueOrder({ team, kind: 'INFANTRY', priority: 2, user: `Bando ${base.key}`, avatarUrl: '' });
+    sim.pushShockwave(sim.safeCenterX, by, 68, '#FBBF24', 2.8);
+    sim.pushBadge(sim.safeCenterX, by + (team === 'A' ? 24 : -24), '⚔️ ASALTO +2⚡', '#FDE047');
+    synth.playSFX('frenzy');
+
+    pushNotificationDock(
+      `⚔️ ASALTO DE ${base.name}`,
+      'Meta de likes: +2.0⚡ Elixir y refuerzos al frente',
+      base.color,
+      '',
+      '',
+      '⚔️',
+      'BANDO',
+      2800
+    );
+  }
 }
 
 function checkSeasonPassUnlock(user: string, avatarUrl: string): void {
@@ -241,7 +266,7 @@ function updateOnboardingTicker(): void {
   const tips = [
     `${weekly.badge} ${weekly.title}`,
     `❤️ ${state.personalTapThreshold} Taps = Tropas`,
-    `🛡️ ${goalLikes} Likes = Escudo de Bando`,
+    `⚔️ ${goalLikes} Likes = Asalto / Escudo 3s`,
     `🎟️ Sube tu Pase Gratis con Taps`,
     '🧭 Participa en 3 biomas y desbloquea el marco Explorador',
     '🤝 Los taps sin equipo apoyan al bando que va perdiendo',
@@ -330,7 +355,7 @@ function updatePanicAlerts(): void {
   if (aLow && !state.teamA.panicActive) {
     state.teamA.panicActive = true;
     synth.playSFX('panic');
-    pushNotificationDock(`🚨 ${state.teamA.name} EN PELIGRO`, `Envía ${shieldSlot.display} → +15% HP`, '#ef4444', '', '', '🚨', 'SOS');
+    pushNotificationDock(`🚨 ${state.teamA.name} EN PELIGRO`, `Envía ${shieldSlot.display} → Escudo 3s`, '#ef4444', '', '', '🚨', 'SOS');
   } else if (!aLow) {
     state.teamA.panicActive = false;
   }
@@ -338,7 +363,7 @@ function updatePanicAlerts(): void {
   if (bLow && !state.teamB.panicActive) {
     state.teamB.panicActive = true;
     synth.playSFX('panic');
-    pushNotificationDock(`🚨 ${state.teamB.name} EN PELIGRO`, `Envía ${shieldSlot.display} → +15% HP`, '#ef4444', '', '', '🚨', 'SOS');
+    pushNotificationDock(`🚨 ${state.teamB.name} EN PELIGRO`, `Envía ${shieldSlot.display} → Escudo 3s`, '#ef4444', '', '', '🚨', 'SOS');
   } else if (!bLow) {
     state.teamB.panicActive = false;
   }
@@ -532,14 +557,28 @@ bus.on('action:instant', ({ team, kind, user, avatarUrl, giftName, mult = 1 }) =
   if (!state.roundActive || state.towerDecayActive) return;
   if (kind === 'SHIELD') {
     const base = team === 'A' ? state.teamA : state.teamB;
-    const heal = Math.round(MAX_BASE_HP * 0.15 * mult);
-    base.hp = Math.min(MAX_BASE_HP, base.hp + heal);
-    base.shieldHp = 550 * mult; base.shieldTimer = 12; base.shieldOwner = user; base.shieldAvatar = avatarUrl;
-    synth.duck(2000); synth.playSFX('shield');
-    sim.pushShockwave(sim.safeCenterX, team === 'A' ? sim.baseAY : sim.baseBY, 72, '#22D3EE', 3);
-    sim.pushBadge(sim.safeCenterX, (team === 'A' ? sim.baseAY : sim.baseBY) + (team === 'A' ? 24 : -24), `+${heal} HP 🛡️`, '#67E8F9');
-    showCenterBanner('🛡️ ESCUDO + REPARACIÓN', `${user} curó +${heal} HP a ${base.name}`, '#22D3EE', avatarUrl, user);
-    updateBaseHUD(); updatePanicAlerts();
+    const by = team === 'A' ? sim.baseAY : sim.baseBY;
+
+    if (isOnlyCoreRemaining(team)) {
+      const heal = Math.round(MAX_BASE_HP * 0.08 * mult);
+      base.hp = Math.min(MAX_BASE_HP, base.hp + heal);
+      base.shieldHp = 350 * mult;
+      base.shieldTimer = 3;
+      base.shieldOwner = user;
+      base.shieldAvatar = avatarUrl;
+      synth.duck(2000); synth.playSFX('shield');
+      sim.pushShockwave(sim.safeCenterX, by, 72, '#22D3EE', 3);
+      sim.pushBadge(sim.safeCenterX, by + (team === 'A' ? 24 : -24), `+${heal} HP 🛡️3s`, '#67E8F9');
+      showCenterBanner('🛡️ ESCUDO DE EMERGENCIA (3s)', `${user} protegió el núcleo de ${base.name} (+${heal} HP)`, '#22D3EE', avatarUrl, user);
+      updateBaseHUD(); updatePanicAlerts();
+    } else {
+      elixir.addElixir(team, 1.5 * mult);
+      elixir.enqueueOrder({ team, kind: 'TANK', priority: 1, user, avatarUrl, isPaidGift: true });
+      synth.duck(1800); synth.playSFX('frenzy');
+      sim.pushShockwave(sim.safeCenterX, by, 64, '#FBBF24', 2.5);
+      sim.pushBadge(sim.safeCenterX, by + (team === 'A' ? 24 : -24), '⚔️ SOBRECARGA +⚡', '#FDE047');
+      showCenterBanner('⚔️ SOBRECARGA OFENSIVA', `${user} impulsó a ${base.name} (Tanque + Elixir)`, base.color, avatarUrl, user);
+    }
   } else if (kind === 'EMP') {
     const enemyTeam: TeamId = team === 'A' ? 'B' : 'A';
     const enemyBase = enemyTeam === 'A' ? state.teamA : state.teamB;
