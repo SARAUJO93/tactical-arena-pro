@@ -1,10 +1,20 @@
 import { TeamId } from './EventBus';
 import { LruMap } from '../utils/helpers';
+import {
+  createEmptyWorldCup,
+  createWorldCup,
+  getCurrentWorldCupMatch,
+  sanitizeWorldCupState,
+  WorldCupMatch,
+  WorldCupState,
+} from '../systems/WorldCup';
 
 export const STORAGE_KEY = 'tactical_arena_v2_3_league';
-export const PERSISTENCE_SCHEMA_VERSION = 3;
+export const PERSISTENCE_SCHEMA_VERSION = 4;
 export const MAX_BASE_HP = 3000;
 export const MAX_SIDE_DEFENSE_HP = 1350;
+export const ROUND_DURATION_SEC = 180;
+export const SUDDEN_DEATH_DURATION_SEC = 60;
 export const METEOR_COIN_STEP = 500;
 export const DESIGN_W = 390;
 
@@ -261,6 +271,20 @@ export const WORLD_ROSTER: TeamPreset[] = [
   { name: 'SERBIA', flag: '🇷🇸', key: 'RS', aliases: ['rs', 'srb', 'serbia'], color: '#DC2626' },
   { name: 'BÉLGICA', flag: '🇧🇪', key: 'BE', aliases: ['be', 'bel', 'belgica', 'bélgica'], color: '#FACC15' },
   { name: 'SUIZA', flag: '🇨🇭', key: 'CH', aliases: ['ch', 'sui', 'suiza'], color: '#DC2626' },
+  { name: 'ESCOCIA', flag: '🏴', key: 'SCO', aliases: ['sco', 'scotland', 'escocia'], color: '#2563EB' },
+  { name: 'UCRANIA', flag: '🇺🇦', key: 'UA', aliases: ['ua', 'ukr', 'ucrania'], color: '#2563EB' },
+  { name: 'RUSIA', flag: '🇷🇺', key: 'RU', aliases: ['ru', 'rus', 'rusia'], color: '#DC2626' },
+  { name: 'AUSTRIA', flag: '🇦🇹', key: 'AT', aliases: ['at', 'aut', 'austria'], color: '#DC2626' },
+  { name: 'CHEQUIA', flag: '🇨🇿', key: 'CZ', aliases: ['cz', 'cze', 'chequia', 'republica checa', 'república checa'], color: '#2563EB' },
+  { name: 'IRLANDA', flag: '🇮🇪', key: 'IE', aliases: ['ie', 'irl', 'irlanda'], color: '#16A34A' },
+  { name: 'ISLANDIA', flag: '🇮🇸', key: 'IS', aliases: ['is', 'isl', 'islandia'], color: '#2563EB' },
+  { name: 'HUNGRÍA', flag: '🇭🇺', key: 'HU', aliases: ['hu', 'hun', 'hungria', 'hungría'], color: '#DC2626' },
+  { name: 'RUMANÍA', flag: '🇷🇴', key: 'RO', aliases: ['ro', 'rou', 'rumania', 'rumanía'], color: '#2563EB' },
+  { name: 'IRÁN', flag: '🇮🇷', key: 'IR', aliases: ['ir', 'irn', 'iran', 'irán'], color: '#16A34A' },
+  { name: 'CAMERÚN', flag: '🇨🇲', key: 'CM', aliases: ['cm', 'cmr', 'camerun', 'camerún'], color: '#16A34A' },
+  { name: 'JAMAICA', flag: '🇯🇲', key: 'JM', aliases: ['jm', 'jam', 'jamaica'], color: '#16A34A' },
+  { name: 'NUEVA ZELANDA', flag: '🇳🇿', key: 'NZ', aliases: ['nz', 'nzl', 'nueva zelanda', 'new zealand'], color: '#1D4ED8' },
+  { name: 'CATAR', flag: '🇶🇦', key: 'QA', aliases: ['qa', 'qat', 'catar', 'qatar'], color: '#7C2D4B' },
 ];
 
 export const LIGAMX_ROSTER: TeamPreset[] = [
@@ -385,6 +409,7 @@ export const state = {
   roster: structuredClone(WORLD_ROSTER) as TeamPreset[],
   rosterCursor: 2,
   tournamentMode: true,
+  worldCup: createEmptyWorldCup() as WorldCupState,
   teamA: makeBaseState(WORLD_ROSTER[0], true),
   teamB: makeBaseState(WORLD_ROSTER[1], false),
   giftSlots: structuredClone(DEFAULT_GIFT_SLOTS) as GiftSlot[],
@@ -394,10 +419,12 @@ export const state = {
   unalignedTapSupportsUnderdog: true,
 
   aiDirectorEnabled: true,
-  suddenDeathDurationSec: 180,
+  roundDurationSec: ROUND_DURATION_SEC,
+  suddenDeathDurationSec: SUDDEN_DEATH_DURATION_SEC,
   roundActive: true,
-  roundTimeLeft: 180,
+  roundTimeLeft: ROUND_DURATION_SEC,
   suddenDeathActive: false,
+  towerDecayActive: false,
   frenzyActive: false,
   frenzyTimeLeft: 0,
   globalTapCount: 0,
@@ -478,6 +505,39 @@ export const state = {
     structuredLog: [],
   } as TelemetryData,
 };
+
+export function prepareNewTournament(): void {
+  const [openingA, openingB] = state.roster;
+  if (!openingA || !openingB) throw new Error('El roster necesita al menos dos equipos para iniciar un torneo.');
+
+  state.worldCup = createEmptyWorldCup();
+  state.teamA = makeBaseState(openingA, true);
+  state.teamB = makeBaseState(openingB, false);
+  state.rosterCursor = 2;
+  state.tournamentMode = true;
+  state.viewerTeams.clear();
+}
+
+export function prepareWorldCup(): WorldCupMatch {
+  const ratings: Record<string, number> = {};
+  WORLD_ROSTER.forEach((team) => {
+    ratings[team.key] = state.teamRecords[team.key]?.elo ?? ELO_INITIAL;
+  });
+  state.worldCup = createWorldCup(WORLD_ROSTER, ratings);
+  state.roster = structuredClone(WORLD_ROSTER);
+  state.rosterCursor = 2;
+  state.tournamentMode = false;
+  state.viewerTeams.clear();
+  state.roster.forEach(ensureTeamRecord);
+
+  const openingMatch = getCurrentWorldCupMatch(state.worldCup);
+  if (!openingMatch?.teamA || !openingMatch.teamB) {
+    throw new Error('No se pudo preparar el partido inicial de la Copa Mundial.');
+  }
+  state.teamA = makeBaseState(openingMatch.teamA, true);
+  state.teamB = makeBaseState(openingMatch.teamB, false);
+  return openingMatch;
+}
 
 /* =====================================================================
    FACTORIES / HELPERS DE TEMPORADA
@@ -676,8 +736,9 @@ export function scoreMvp(user: string, avatarUrl: string, team: TeamId, delta: n
 
 export function beginRound(biome: string): void {
   state.roundActive = true;
-  state.roundTimeLeft = state.suddenDeathDurationSec;
+  state.roundTimeLeft = state.roundDurationSec;
   state.suddenDeathActive = false;
+  state.towerDecayActive = false;
   state.frenzyActive = false;
   state.frenzyTimeLeft = 0;
   state.globalTapCount = 0;
@@ -794,19 +855,21 @@ export function finalizeRound(winner: TeamId, opts: FinalizeRoundOptions = {}): 
   state.roundLogs.unshift(log);
   if (state.roundLogs.length > MAX_ROUND_LOGS) state.roundLogs.length = MAX_ROUND_LOGS;
 
-  /* ---- 6. Temporada actual ---- */
-  const season = state.currentSeason;
-  const winEntry = ensureStandingsEntry(season, winnerBase);
-  const loseEntry = ensureStandingsEntry(season, loserBase);
-  winEntry.wins += 1;
-  winEntry.points += featured ? POINTS_WIN_FEATURED : POINTS_WIN_NORMAL;
-  winEntry.participation += 1;
-  loseEntry.losses += 1;
-  loseEntry.participation += 1;
-  if (roundMvp) {
-    season.topMvps.push({ ...roundMvp });
-    season.topMvps.sort((a, b) => b.score - a.score);
-    if (season.topMvps.length > 100) season.topMvps.length = 100;
+  /* ---- 6. Temporada regular (la Copa mantiene una clasificación aparte) ---- */
+  if (state.worldCup.status !== 'in_progress') {
+    const season = state.currentSeason;
+    const winEntry = ensureStandingsEntry(season, winnerBase);
+    const loseEntry = ensureStandingsEntry(season, loserBase);
+    winEntry.wins += 1;
+    winEntry.points += featured ? POINTS_WIN_FEATURED : POINTS_WIN_NORMAL;
+    winEntry.participation += 1;
+    loseEntry.losses += 1;
+    loseEntry.participation += 1;
+    if (roundMvp) {
+      season.topMvps.push({ ...roundMvp });
+      season.topMvps.sort((a, b) => b.score - a.score);
+      if (season.topMvps.length > 100) season.topMvps.length = 100;
+    }
   }
 
   /* ---- 7. Reset round-local ---- */
@@ -1020,6 +1083,7 @@ export function saveNow(): void {
         roster: state.roster,
         rosterCursor: state.rosterCursor,
         tournamentMode: state.tournamentMode,
+        worldCup: state.worldCup,
         teamA: {
           name: state.teamA.name, flag: state.teamA.flag, key: state.teamA.key,
           aliases: state.teamA.aliases, color: state.teamA.color,
@@ -1389,11 +1453,24 @@ export function loadPersistentState(): void {
       typeof (value as GiftSlot).display === 'string';
 
     if (Array.isArray(persisted.roster) && persisted.roster.length >= 2) {
-      const roster = persisted.roster.filter(isTeamPreset).slice(0, 50);
+      const roster = persisted.roster.filter(isTeamPreset).slice(0, 64);
       if (roster.length >= 2) state.roster = roster;
     }
     if (finiteNumber(persisted.rosterCursor)) state.rosterCursor = Math.max(0, Math.floor(persisted.rosterCursor));
     if (typeof persisted.tournamentMode === 'boolean') state.tournamentMode = persisted.tournamentMode;
+    if (persisted.worldCup !== undefined) {
+      const worldCup = sanitizeWorldCupState(persisted.worldCup);
+      if (worldCup) {
+        state.worldCup = worldCup;
+      } else {
+        state.worldCup = createEmptyWorldCup();
+        state.telemetry.persistenceErrorCount += 1;
+        state.telemetry.errorLog.unshift(`[${new Date().toLocaleTimeString('es-MX', { hour12: false })}] Persistencia: estado de Copa Mundial no válido`);
+        state.telemetry.errorLog = state.telemetry.errorLog.slice(0, 40);
+      }
+    } else {
+      state.worldCup = createEmptyWorldCup();
+    }
     if (persisted.teamA && typeof persisted.teamA === 'object') {
       const teamA = persisted.teamA as Record<string, unknown>;
       if (typeof teamA.name === 'string') state.teamA.name = teamA.name.slice(0, 64);
@@ -1506,6 +1583,12 @@ export function loadPersistentState(): void {
 
     // Garantizar todos los teamRecords del roster actual
     state.roster.forEach((t) => ensureTeamRecord(t));
+    const currentWorldCupMatch = getCurrentWorldCupMatch(state.worldCup);
+    if (currentWorldCupMatch?.teamA && currentWorldCupMatch.teamB) {
+      state.tournamentMode = false;
+      state.teamA = makeBaseState(currentWorldCupMatch.teamA, true);
+      state.teamB = makeBaseState(currentWorldCupMatch.teamB, false);
+    }
 
     resetIfNeeded();
   } catch {

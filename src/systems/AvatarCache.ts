@@ -26,10 +26,13 @@ const PALETTES = [
 
 const avatarBubblePositions: { x: number; y: number; radius: number }[] = [];
 const avatarLabelRects: LabelRect[] = [];
+const avatarLabelOwners = new Set<string>();
+const MAX_VISIBLE_AVATAR_LABELS = 6;
 
 export function resetAvatarFrameRegistry(): void {
   avatarBubblePositions.length = 0;
   avatarLabelRects.length = 0;
+  avatarLabelOwners.clear();
 }
 
 function hashStr(s: string): number {
@@ -107,7 +110,8 @@ export function drawUnitAvatar(
   username: string,
   ringColor: string,
   veteranRank = 1,
-  cosmetic?: AvatarCosmeticStyle
+  cosmetic?: AvatarCosmeticStyle,
+  showLabel = true
 ): void {
   if (!username) return;
 
@@ -151,13 +155,16 @@ export function drawUnitAvatar(
   }
   ctx.restore();
 
+  const ownerKey = username.replace(/^@/, '').toLowerCase();
+  if (!showLabel || avatarLabelOwners.has(ownerKey) || avatarLabelOwners.size >= MAX_VISIBLE_AVATAR_LABELS) return;
+
   const prefix = cosmetic ? `${cosmetic.emblem} ` : veteranRank > 1 ? `★${veteranRank} ` : '';
   const label = prefix + (username.startsWith('@') ? username : `@${username}`).slice(0, 10);
   ctx.save();
-  ctx.font = '700 8px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.font = '700 9px -apple-system, BlinkMacSystemFont, sans-serif';
   ctx.textAlign = 'center';
   const tw = ctx.measureText(label).width + 6;
-  const labelH = 10;
+  const labelH = 11;
   const gap = 3;
 
   const candidates: LabelRect[] = [
@@ -172,11 +179,12 @@ export function drawUnitAvatar(
   const chosen = candidates.find((r) => !overlaps(r));
   if (chosen) {
     avatarLabelRects.push(chosen);
+    avatarLabelOwners.add(ownerKey);
     ctx.fillStyle = 'rgba(2, 6, 23, 0.86)';
     drawRoundRect(ctx, chosen.left, chosen.top, tw, labelH, 4);
     ctx.fill();
     ctx.fillStyle = cosmetic ? cosmetic.ringColor : veteranRank > 1 ? '#FDE047' : '#F8FAFC';
-    ctx.fillText(label, x, chosen.top + 7.3);
+    ctx.fillText(label, x, chosen.top + 8.1);
   }
   ctx.restore();
 }

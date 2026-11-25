@@ -1,4 +1,5 @@
 import { PlayerRecord } from '../core/GameState';
+import { BIOMES, BiomeTheme } from '../config/biomes';
 
 export interface PersonalRankInfo {
   level: number;
@@ -37,6 +38,53 @@ const RANK_TIERS: ReadonlyArray<{ xp: number; title: string }> = [
 
 const TAP_MILESTONES = [15, 50, 100, 250, 500, 1000] as const;
 const MAX_TRACKED_VIEWERS = 500;
+const BIOME_VISIT_PREFIX = 'biome_visit:';
+export const BIOME_EXPLORER_BADGE = 'biome_explorer';
+const BIOME_EXPLORATION_TARGET = 3;
+const BIOME_IDS = new Set(BIOMES.map((biome) => biome.id));
+
+export interface BiomeExplorationProgress {
+  visited: number;
+  target: number;
+  complete: boolean;
+}
+
+export function getBiomeExplorationProgress(badges: readonly string[] = []): BiomeExplorationProgress {
+  const visited = new Set(
+    badges
+      .filter((badge) => badge.startsWith(BIOME_VISIT_PREFIX))
+      .map((badge) => badge.slice(BIOME_VISIT_PREFIX.length))
+      .filter((biomeId): biomeId is BiomeTheme['id'] => BIOME_IDS.has(biomeId as BiomeTheme['id']))
+  );
+  return {
+    visited: Math.min(BIOME_EXPLORATION_TARGET, visited.size),
+    target: BIOME_EXPLORATION_TARGET,
+    complete: badges.includes(BIOME_EXPLORER_BADGE),
+  };
+}
+
+export function recordBiomeExploration(
+  badges: string[],
+  biomeId: BiomeTheme['id']
+): BiomeExplorationProgress & { newBiome: boolean; newlyUnlocked: boolean } {
+  const visitBadge = `${BIOME_VISIT_PREFIX}${biomeId}`;
+  const newBiome = !badges.includes(visitBadge);
+  const wasComplete = badges.includes(BIOME_EXPLORER_BADGE);
+
+  if (newBiome) {
+    badges.push(visitBadge);
+    if (badges.length > 100) badges.shift();
+  }
+
+  const progress = getBiomeExplorationProgress(badges);
+  const newlyUnlocked = !wasComplete && progress.visited >= progress.target;
+  if (newlyUnlocked) {
+    badges.push(BIOME_EXPLORER_BADGE);
+    if (badges.length > 100) badges.shift();
+  }
+
+  return { ...getBiomeExplorationProgress(badges), newBiome, newlyUnlocked };
+}
 
 export function computePersonalRank(xpRaw: number): PersonalRankInfo {
   const xp = Number.isFinite(xpRaw) ? Math.max(0, Math.floor(xpRaw)) : 0;

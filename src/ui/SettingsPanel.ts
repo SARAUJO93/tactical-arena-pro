@@ -10,6 +10,7 @@ import { TikFinityClient } from '../network/TikFinityClient';
 import { downloadFile, renderTelemetry } from '../systems/Telemetry';
 import { escapeHtml, hexToRgba } from '../utils/helpers';
 import { getAvatar } from '../systems/AvatarCache';
+import { renderTeamFlagHtml } from './FlagRenderer';
 import { ExternalObservability, sanitizeExternalEndpoint } from '../monitoring/ExternalObservability';
 import {
   computeSeasonXp,
@@ -19,6 +20,14 @@ import {
 } from '../systems/SeasonPass';
 import { getWeeklyCalendar } from '../systems/WeeklySchedule';
 import { computeBalanceReport } from '../systems/BalanceAnalytics';
+import {
+  countCompletedWorldCupMatches,
+  createEmptyWorldCup,
+  getCurrentWorldCupMatch,
+  WORLD_CUP_TEAM_COUNT,
+  WORLD_CUP_ROUND_COUNTS,
+  WORLD_CUP_TOTAL_MATCHES,
+} from '../systems/WorldCup';
 
 export interface SettingsPanelDeps {
   synth: SynthEngine;
@@ -30,6 +39,8 @@ export interface SettingsPanelDeps {
   activateSuddenDeath: () => void;
   resetRound: () => void;
   resetSession: () => void;
+  startNewTournament: () => void;
+  startWorldCup: () => void;
   simulateTap: (team: TeamId) => void;
   externalObservability: ExternalObservability;
 }
@@ -135,11 +146,16 @@ export class SettingsPanel {
     $('btnDemoToggle').className = state.demoMode ? 'btn btn-emerald' : 'btn btn-amber';
     $('demoDotTop').style.background = state.demoMode ? '#34D399' : '#64748B';
 
-    $('btnQuickMute').textContent = state.audioEnabled ? '🔊' : '🔇';
+    const quickMuteButton = $('btnQuickMute');
+    const isMuted = !state.audioEnabled;
+    quickMuteButton.setAttribute('aria-pressed', String(isMuted));
+    quickMuteButton.setAttribute('aria-label', isMuted ? 'Activar audio' : 'Silenciar audio');
+    quickMuteButton.title = isMuted ? 'Activar audio' : 'Silenciar audio';
     $('btnAudioToggle').textContent = state.audioEnabled ? '🔊 Audio: ON' : '🔇 Audio: OFF';
     $('btnTtsToggle').textContent = state.ttsEnabled ? '🗣️ TTS Interno: ON' : '🗣️ TTS Interno: OFF';
     $('btnAiToggle').textContent = state.aiDirectorEnabled ? '🤖 Director IA: ON' : '🤖 Director IA: OFF';
     $('btnTournamentToggle').textContent = state.tournamentMode ? 'Torneo: ON' : 'Torneo: OFF';
+    this.syncWorldCupControls();
     $('btnExternalTelemetry').textContent = state.externalObservabilityEnabled
       ? '📡 Externa: ON'
       : '📡 Externa: OFF';
@@ -189,14 +205,59 @@ export class SettingsPanel {
     this.deps.updateFrenzyGaugeUI();
   }
 
+  private syncWorldCupControls(): void {
+    const status = $('worldCupStatus');
+    const fixture = $('worldCupFixture');
+    const rounds = $('worldCupRounds');
+    const startButton = $('btnWorldCupStart') as HTMLButtonElement;
+    const cup = state.worldCup;
+    const completed = countCompletedWorldCupMatches(cup);
+    const roundNames = ['Ronda de 64', 'Ronda de 32', 'Octavos de final', 'Cuartos de final', 'Semifinales', 'Final'];
+    const roundLabels = ['64', '32', '16', '8', '4', '2'];
+
+    if (cup.status === 'in_progress') {
+      const match = getCurrentWorldCupMatch(cup);
+      if (!match?.teamA || !match.teamB) {
+        throw new Error('La Copa Mundial activa no tiene un partido válido.');
+      }
+      const roundIndex = cup.rounds.findIndex((round) => round.includes(match));
+      const matchIndex = cup.rounds[roundIndex].indexOf(match);
+      status.textContent = `En curso · ${roundNames[roundIndex]} · ${completed}/${WORLD_CUP_TOTAL_MATCHES} partidos`;
+      fixture.innerHTML = `
+        <strong>Partido ${matchIndex + 1}/${WORLD_CUP_ROUND_COUNTS[roundIndex]}</strong>
+        <span>${renderTeamFlagHtml(match.teamA.key, match.teamA.flag)} ${escapeHtml(match.teamA.name)}
+        vs ${renderTeamFlagHtml(match.teamB.key, match.teamB.flag)} ${escapeHtml(match.teamB.name)}</span>`;
+      startButton.textContent = '🔄 Reiniciar Copa';
+    } else if (cup.status === 'completed' && cup.champion) {
+      status.textContent = `Copa completada · ${WORLD_CUP_TOTAL_MATCHES}/${WORLD_CUP_TOTAL_MATCHES} partidos`;
+      fixture.innerHTML = `🏆 Campeón: ${renderTeamFlagHtml(cup.champion.key, cup.champion.flag)} ${escapeHtml(cup.champion.name)}`;
+      startButton.textContent = '🏆 Nueva Copa de 64';
+    } else {
+      status.textContent = `${WORLD_CUP_TEAM_COUNT} países · ${WORLD_CUP_ROUND_COUNTS.length} rondas · ${WORLD_CUP_TOTAL_MATCHES} partidos · siembra inicial por ELO`;
+      fixture.textContent = 'Sin Copa Mundial activa.';
+      startButton.textContent = '🏆 Iniciar Copa de 64';
+    }
+    rounds.innerHTML = cup.rounds.length
+      ? cup.rounds.map((round, index) => {
+          const roundWins = round.filter((match) => match.winner !== null).length;
+          return `<span style="padding:2px 4px;border-radius:4px;background:rgba(255,255,255,0.06);">${roundLabels[index]}: ${roundWins}/${round.length}</span>`;
+        }).join('')
+      : '64 → 32 → 16 → 8 → 4 → 2 → campeón';
+
+    const rosterLocked = cup.status === 'in_progress';
+    for (const id of ['btnPresetWorld', 'btnPresetLigaMX', 'btnPresetMexicoCities', 'btnAddRoster', 'inAddFlag', 'inAddName', 'inAddKey']) {
+      ($(id) as HTMLButtonElement | HTMLInputElement).disabled = rosterLocked;
+    }
+  }
+
   renderRosterChips(): void {
     const container = $('rosterChips');
     container.innerHTML = state.roster
       .map(
         (r, idx) => `
       <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,0.06);border:1px solid ${hexToRgba(r.color, 0.45)};border-radius:8px;padding:3px 7px;font-size:9.5px;font-weight:700;">
-        <span>${escapeHtml(r.flag)} ${escapeHtml(r.name)}</span>
-        ${state.roster.length > 2 ? `<button data-remove-idx="${idx}" style="background:none;border:none;color:#FDA4AF;cursor:pointer;font-size:10px;padding:0;">✕</button>` : ''}
+        <span>${renderTeamFlagHtml(r.key, r.flag, 'inline')} ${escapeHtml(r.name)}</span>
+        ${state.roster.length > 2 && state.worldCup.status !== 'in_progress' ? `<button data-remove-idx="${idx}" style="background:none;border:none;color:#FDA4AF;cursor:pointer;font-size:10px;padding:0;">✕</button>` : ''}
       </span>`
       )
       .join('');
@@ -204,7 +265,7 @@ export class SettingsPanel {
     container.querySelectorAll<HTMLButtonElement>('[data-remove-idx]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const idx = Number(btn.dataset.removeIdx);
-        if (state.roster.length > 2) {
+        if (state.roster.length > 2 && state.worldCup.status !== 'in_progress') {
           state.roster.splice(idx, 1);
           this.renderRosterChips();
           savePersistentState();
@@ -644,6 +705,20 @@ export class SettingsPanel {
     $('btnResetRound').addEventListener('click', () => this.deps.resetRound());
     $('btnResetSession').addEventListener('click', () => this.deps.resetSession());
     $('btnTelReset').addEventListener('click', () => this.deps.resetSession());
+    $('btnNewTournament').addEventListener('click', () => {
+      const activeCupWarning = state.worldCup.status === 'in_progress'
+        ? ' Se cancelará la Copa Mundial activa.'
+        : '';
+      if (!window.confirm(`¿Iniciar un torneo nuevo con los dos primeros equipos del roster? Se reiniciarán la pareja actual, sus victorias y la rotación; se activará el modo Torneo y se conservarán el resto de ajustes y el historial.${activeCupWarning}`)) return;
+      this.deps.startNewTournament();
+    });
+    $('btnWorldCupStart').addEventListener('click', () => {
+      if (state.worldCup.status === 'in_progress' &&
+        !window.confirm('¿Reiniciar la Copa Mundial? Se perderá el avance de los partidos ya jugados.')) return;
+      if (state.worldCup.status === 'completed' &&
+        !window.confirm('¿Iniciar una nueva Copa Mundial de 64 equipos?')) return;
+      this.deps.startWorldCup();
+    });
     $('btnExportState').addEventListener('click', () => {
       const raw = exportPersistentState();
       if (!raw) return;
@@ -736,6 +811,10 @@ export class SettingsPanel {
 
     // Torneo y Roster
     $('btnTournamentToggle').addEventListener('click', () => {
+      if (!state.tournamentMode && state.worldCup.status === 'in_progress') {
+        if (!window.confirm('Activar King of the Hill cancelará la Copa Mundial activa. ¿Continuar?')) return;
+        state.worldCup = createEmptyWorldCup();
+      }
       state.tournamentMode = !state.tournamentMode;
       this.deps.applyTeamUI();
       savePersistentState();
@@ -749,6 +828,10 @@ export class SettingsPanel {
       const keyInp = $('inAddKey') as HTMLInputElement;
       const name = nameInp.value.trim().toUpperCase();
       if (!name) return;
+      if (state.roster.length >= WORLD_CUP_TEAM_COUNT) {
+        window.alert(`El roster puede tener como máximo ${WORLD_CUP_TEAM_COUNT} equipos.`);
+        return;
+      }
       const flag = flagInp.value.trim() || '🏳️';
       const key = (keyInp.value.trim() || name.slice(0, 2)).toUpperCase();
       const colors = ['#10B981', '#38BDF8', '#F59E0B', '#F43F5E', '#8B5CF6', '#EC4899'];

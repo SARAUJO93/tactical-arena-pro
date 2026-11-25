@@ -1,6 +1,9 @@
 import { BIOMES, BiomeTheme } from '../config/biomes';
 import { FACTION_GOAL_DEFAULT_LIKES } from './FactionGoals';
 
+const MS_PER_WEEK = 7 * 86_400_000;
+const ROTATION_ANCHOR_MONDAY_UTC = Date.UTC(1970, 0, 5);
+
 export type WeeklyEventId = 'monday_biome' | 'wednesday_faction' | 'saturday_finals' | 'regular';
 
 export interface WeeklyEvent {
@@ -23,8 +26,14 @@ export interface WeeklyCalendarItem {
 }
 
 function getFeaturedBiomeForWeek(date: Date): BiomeTheme {
-  const weekIndex = Math.floor(date.getTime() / (7 * 86_400_000));
-  return BIOMES[Math.abs(weekIndex) % BIOMES.length];
+  const weekStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const daysSinceMonday = (weekStart.getDay() + 6) % 7;
+  weekStart.setDate(weekStart.getDate() - daysSinceMonday);
+
+  const weekStartUtc = Date.UTC(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate());
+  const weekIndex = Math.floor((weekStartUtc - ROTATION_ANCHOR_MONDAY_UTC) / MS_PER_WEEK);
+  const biomeIndex = ((weekIndex % BIOMES.length) + BIOMES.length) % BIOMES.length;
+  return BIOMES[biomeIndex];
 }
 
 export function getWeeklyEventForDate(date = new Date()): WeeklyEvent {

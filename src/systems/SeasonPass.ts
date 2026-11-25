@@ -1,4 +1,5 @@
 import { PlayerRecord, SeasonData } from '../core/GameState';
+import { BIOME_EXPLORER_BADGE } from './PersonalProgress';
 
 export interface SeasonPassTier {
   tier: number;
@@ -87,18 +88,26 @@ export function syncSeasonPassBadges(rec: PlayerRecord): SeasonPassTier | null {
 
 export function getCosmeticFrameFromBadges(badges: string[] | undefined): AvatarCosmeticStyle | undefined {
   if (!badges || badges.length === 0) return undefined;
+  let passStyle: AvatarCosmeticStyle | undefined;
   for (let i = SEASON_PASS_TIERS.length - 1; i >= 0; i--) {
     const tier = SEASON_PASS_TIERS[i];
     if (badges.includes(tier.id)) {
-      return {
+      passStyle = {
         emblem: tier.emblem,
         title: tier.title,
         ringColor: tier.ringColor,
         outerRingColor: tier.outerRingColor,
       };
+      break;
     }
   }
-  return undefined;
+  if (!badges.includes(BIOME_EXPLORER_BADGE)) return passStyle;
+  return {
+    emblem: '🧭',
+    title: 'Explorador',
+    ringColor: passStyle?.ringColor ?? '#A3E635',
+    outerRingColor: '#BEF264',
+  };
 }
 
 export function getPreviousSeasonChampion(seasonHistory: SeasonData[]): SeasonData | null {

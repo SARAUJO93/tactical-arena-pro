@@ -218,7 +218,7 @@ export class Simulation {
     private cardBaseB: HTMLElement,
     private synth: SynthEngine,
     private onBaseDamageUI: () => void,
-    private onVictory: (winner: TeamId) => void
+    private onVictory: (winner: TeamId, reason?: 'core' | 'sudden_death_tower') => void
   ) {
     this.ctx = canvas.getContext('2d')!;
     if (typeof ResizeObserver !== 'undefined') {
@@ -325,7 +325,7 @@ export class Simulation {
   }
 
   deployOrder(order: DeployOrder): void {
-    if (!state.roundActive) return;
+    if (!state.roundActive || state.towerDecayActive) return;
     const isA = order.team === 'A';
     const lane: 0 | 1 = Math.random() < 0.5 ? 0 : 1;
     const laneX = this.getBridgeX(lane) + (Math.random() - 0.5) * 14;
@@ -576,12 +576,14 @@ export class Simulation {
     const amount = rawAmount * (state.suddenDeathActive ? 2 : 1);
     tower.hp = Math.max(0, tower.hp - amount);
     tower.flash = 6;
+    this.onBaseDamageUI();
     const pos = this.getSideTowerPos(targetTeam, lane);
     if (tower.hp <= 0) {
       this.spawnExplosion(pos.x, pos.y, base.color, 'medium');
       this.synth.playSFX('cannon');
       state.shake = Math.max(state.shake, 7);
       this.pushBadge(pos.x, pos.y, '💥 TORRE CAÍDA', '#FDE047', -0.7);
+      if (state.suddenDeathActive) this.onVictory(targetTeam === 'A' ? 'B' : 'A', 'sudden_death_tower');
     }
   }
 
@@ -614,7 +616,7 @@ export class Simulation {
       );
     }
     this.onBaseDamageUI();
-    if (base.hp <= 0) this.onVictory(targetTeam === 'A' ? 'B' : 'A');
+    if (base.hp <= 0) this.onVictory(targetTeam === 'A' ? 'B' : 'A', 'core');
   }
 
   private updateBaseDefenses(team: TeamId, baseObj: BaseState, by: number, ts: number): void {
@@ -690,6 +692,7 @@ export class Simulation {
   }
 
   update(dtFrames: number): void {
+    if (state.towerDecayActive) return;
     const ts = state.timeScale * dtFrames;
     this.frame++;
     if (state.shake > 0.15) state.shake *= 0.87; else state.shake = 0;
@@ -1024,28 +1027,70 @@ export class Simulation {
     for (const u of this.units) {
       const col = u.hackedFlash > 0 && this.frame % 6 < 3 ? '#E879F9' : u.team === 'A' ? state.teamA.color : state.teamB.color;
       ctx.save(); ctx.translate(u.x, u.y);
+      ctx.fillStyle = 'rgba(2,6,23,0.32)';
+      ctx.beginPath(); ctx.ellipse(1.5, 4.5, u.type === 'tank' ? 13 : 5, u.type === 'tank' ? 6 : 3.2, 0, 0, Math.PI * 2); ctx.fill();
       if (u.type === 'soldier') {
         const bob = Math.sin(u.bobPhase) * 1.1;
         ctx.rotate(u.angle);
         ctx.translate(0, bob * 0.4);
-        ctx.fillStyle = '#1E293B'; ctx.strokeStyle = col; ctx.lineWidth = 1.2;
-        drawRoundRect(ctx, -3.5, -5.5, 6.5, 11, 2.5); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#080D17';
+        drawRoundRect(ctx, -3.1, 2.4, 2.6, 4, 1); ctx.fill();
+        drawRoundRect(ctx, 0.8, 2.4, 2.6, 4, 1); ctx.fill();
+        ctx.fillStyle = '#172338';
+        ctx.beginPath();
+        ctx.moveTo(-2.6, -2.8); ctx.lineTo(-1.4, -4.2); ctx.lineTo(1.7, -4.1);
+        ctx.lineTo(3.1, -2.2); ctx.lineTo(2.7, 3.2); ctx.lineTo(0, 4.5);
+        ctx.lineTo(-2.9, 3.1); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = 'rgba(2,6,23,0.95)'; ctx.lineWidth = 2.6; ctx.stroke();
+        ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = '#263950';
+        drawRoundRect(ctx, -2.1, -1.7, 4.2, 4.2, 1.1); ctx.fill();
+        ctx.fillStyle = col; drawRoundRect(ctx, -1.2, 0, 2.4, 1.2, 0.5); ctx.fill();
+        ctx.fillStyle = '#0B1220';
+        ctx.beginPath(); ctx.arc(-0.2, -3.2, 2.8, Math.PI, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#CBD5E1';
+        ctx.beginPath(); ctx.arc(-0.2, -3.2, 2.1, Math.PI, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#101827'; ctx.fillRect(0.1, -3.7, 1.9, 1.1);
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(-3, -0.5, 1.2, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#CBD5E1'; ctx.fillRect(1.5, 1.5, 7.5, 2);
+        ctx.fillStyle = 'rgba(2,6,23,0.8)'; ctx.fillRect(1.5, 3.5, 7.5, 0.8);
         if (u.muzzleFlash > 0) {
           ctx.fillStyle = '#FEF08A';
           ctx.beginPath();
           ctx.arc(10.5, 2.5, 2.4 * (u.muzzleFlash / 4), 0, Math.PI * 2);
           ctx.fill();
         }
-        ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0.5, 0, 3.4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0.5, 0, 2.2, 0, Math.PI * 2); ctx.fill();
       } else {
         ctx.save(); ctx.rotate(u.angle);
-        ctx.fillStyle = '#070A10'; ctx.fillRect(-12, -10.5, 24, 4.2); ctx.fillRect(-12, 6.3, 24, 4.2);
-        ctx.fillStyle = '#1E293B'; ctx.strokeStyle = u.empStun > 0 ? '#22D3EE' : u.veteranRank > 1 ? '#FBBF24' : '#475569'; ctx.lineWidth = 1.4;
-        drawRoundRect(ctx, -11, -7.5, 22, 15, 3); ctx.fill(); ctx.stroke();
+        for (let track = -1; track <= 1; track += 2) {
+          const trackY = track * 8.7;
+          ctx.fillStyle = '#080D17';
+          drawRoundRect(ctx, -11, trackY - 2.4, 22, 4.8, 2.2); ctx.fill();
+          ctx.strokeStyle = 'rgba(148,163,184,0.42)'; ctx.lineWidth = 0.65;
+          drawRoundRect(ctx, -11, trackY - 2.4, 22, 4.8, 2.2); ctx.stroke();
+          for (let wheel = 0; wheel < 4; wheel++) {
+            ctx.fillStyle = wheel % 2 === 0 ? '#94A3B8' : '#475569';
+            ctx.beginPath(); ctx.arc(-7.5 + wheel * 5, trackY, 1.1, 0, Math.PI * 2); ctx.fill();
+          }
+        }
+        ctx.fillStyle = '#22334A';
+        ctx.beginPath();
+        ctx.moveTo(-9, -5); ctx.lineTo(-6, -6.3); ctx.lineTo(5, -6.3);
+        ctx.lineTo(10, -3.1); ctx.lineTo(10, 3.1); ctx.lineTo(5, 6.3);
+        ctx.lineTo(-6, 6.3); ctx.lineTo(-9, 5); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = 'rgba(2,6,23,0.95)'; ctx.lineWidth = 2.7; ctx.stroke();
+        ctx.strokeStyle = u.empStun > 0 ? '#22D3EE' : u.veteranRank > 1 ? '#FBBF24' : col; ctx.lineWidth = 1.1; ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.14)';
+        ctx.beginPath(); ctx.moveTo(-6, -4.4); ctx.lineTo(4, -4.7); ctx.lineTo(7, -2.7); ctx.lineTo(-6, -2.7); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = col; ctx.fillRect(-1.3, -5.2, 2.6, 10.4);
         ctx.restore();
         ctx.save(); ctx.rotate(u.turretAngle);
-        ctx.fillStyle = '#CBD5E1'; ctx.fillRect(3 - u.recoil, -2, 15, 4);
+        ctx.fillStyle = '#CBD5E1';
+        drawRoundRect(ctx, 3 - u.recoil, -1.8, 15, 3.6, 1.2); ctx.fill();
+        ctx.strokeStyle = 'rgba(2,6,23,0.85)'; ctx.lineWidth = 0.9; ctx.stroke();
+        ctx.fillStyle = 'rgba(2,6,23,0.85)'; ctx.fillRect(15 - u.recoil, -1, 2, 2);
         if (u.muzzleFlash > 0) {
           const mf = u.muzzleFlash / 4;
           ctx.fillStyle = '#FEF08A';
@@ -1057,8 +1102,14 @@ export class Simulation {
           ctx.arc(19 - u.recoil, 0, 2.2 * mf, 0, Math.PI * 2);
           ctx.fill();
         }
-        ctx.fillStyle = '#0F172A'; ctx.strokeStyle = col; ctx.lineWidth = 1.6;
-        drawRoundRect(ctx, -6.5, -6, 13, 12, 3); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#101B2D';
+        drawRoundRect(ctx, -6.5, -6, 13, 12, 3); ctx.fill();
+        ctx.strokeStyle = 'rgba(2,6,23,0.95)'; ctx.lineWidth = 2.6; ctx.stroke();
+        ctx.strokeStyle = col; ctx.lineWidth = 1.1; ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        drawRoundRect(ctx, -3.5, -4.5, 6, 2, 1); ctx.fill();
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(-2.3, 0, 1.3, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
 
         // Chispas EMP sobre tanques paralizados
@@ -1076,30 +1127,79 @@ export class Simulation {
           ctx.restore();
         }
 
-        ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(-12, -18, 24, 3);
-        ctx.fillStyle = u.veteranRank > 1 ? '#FBBF24' : col; ctx.fillRect(-12, -18, 24 * (u.hp / u.maxHp), 3);
+        ctx.fillStyle = 'rgba(2,6,23,0.82)';
+        drawRoundRect(ctx, -12, -18, 24, 3.5, 1.75); ctx.fill();
+        const hpRatio = Math.max(0, Math.min(1, u.hp / u.maxHp));
+        if (hpRatio > 0) {
+          ctx.fillStyle = u.veteranRank > 1 ? '#FBBF24' : col;
+          drawRoundRect(ctx, -11.5, -17.5, 23 * hpRatio, 2.5, 1.25); ctx.fill();
+        }
       }
       ctx.restore();
       const cosmetic = u.owner ? getCosmeticFrameFromBadges(state.playerRecords[u.owner]?.badges) : undefined;
       if (u.type === 'tank' && u.owner) drawUnitAvatar(ctx, u.x, u.y - 27, 9, u.avatarUrl, u.owner, col, u.veteranRank, cosmetic);
-      else if (u.type === 'soldier' && u.isLeader && u.owner) drawUnitAvatar(ctx, u.x, u.y - 16, 7, u.avatarUrl, u.owner, col, u.veteranRank, cosmetic);
+      else if (u.type === 'soldier' && u.isLeader && u.owner) drawUnitAvatar(ctx, u.x, u.y - 16, 7, u.avatarUrl, u.owner, col, u.veteranRank, cosmetic, false);
     }
 
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
     for (const p of this.projectiles) {
-      ctx.strokeStyle = p.type === 'shell' ? '#FDBA74' : p.color; ctx.lineWidth = p.type === 'shell' ? 2.8 : 1.8;
-      ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 1.5, p.y - p.vy * 1.5); ctx.stroke();
+      const shell = p.type === 'shell';
+      const trailColor = shell ? '#FDBA74' : p.color;
+      const trailLength = shell ? 3.1 : p.type === 'turret' ? 1.25 : 1.8;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = hexToRgba(trailColor, shell ? 0.3 : 0.2);
+      ctx.lineWidth = shell ? 5 : 3.2;
+      ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * trailLength, p.y - p.vy * trailLength); ctx.stroke();
+      ctx.strokeStyle = trailColor;
+      ctx.lineWidth = shell ? 2.2 : 1.25;
+      ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * trailLength, p.y - p.vy * trailLength); ctx.stroke();
+      ctx.fillStyle = trailColor;
+      ctx.beginPath(); ctx.arc(p.x, p.y, shell ? 2.8 : 1.8, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = shell ? '#FFF7ED' : '#FFFFFF';
+      ctx.beginPath(); ctx.arc(p.x, p.y, shell ? 1.1 : 0.7, 0, Math.PI * 2); ctx.fill();
     }
     for (const b of this.bombs) {
-      ctx.fillStyle = '#FDE047'; ctx.beginPath(); ctx.arc(b.x + (b.tx - b.x) * b.progress, b.y + (b.ty - b.y) * b.progress, 3.4, 0, Math.PI * 2); ctx.fill();
+      const bx = b.x + (b.tx - b.x) * b.progress;
+      const by = b.y + (b.ty - b.y) * b.progress;
+      const pulse = Math.sin(b.progress * Math.PI);
+      ctx.strokeStyle = hexToRgba(b.color, 0.28 + pulse * 0.22);
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.ellipse(b.tx, b.ty, 3 + b.progress * 5, 2 + b.progress * 2, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = hexToRgba('#FDBA74', 0.18 + pulse * 0.18);
+      ctx.beginPath(); ctx.arc(bx, by, 6 + pulse * 2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#FFF7CC'; ctx.beginPath(); ctx.arc(bx, by, 2.2, 0, Math.PI * 2); ctx.fill();
     }
     for (const m of this.meteors) {
       const mx = m.x + (m.tx - m.x) * m.progress, my = m.y + (m.ty - m.y) * m.progress;
       ctx.strokeStyle = 'rgba(251,146,60,0.6)'; ctx.beginPath(); ctx.arc(m.tx, m.ty, 18 * (1 - m.progress) + 4, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = '#FFF'; ctx.beginPath(); ctx.arc(mx, my, 4.5, 0, Math.PI * 2); ctx.fill();
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(251,146,60,0.35)'; ctx.lineWidth = 7;
+      ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx - (m.tx - m.x) * 0.12, my - (m.ty - m.y) * 0.12); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,229,170,0.88)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx - (m.tx - m.x) * 0.08, my - (m.ty - m.y) * 0.08); ctx.stroke();
+      ctx.fillStyle = '#FFF'; ctx.beginPath(); ctx.arc(mx, my, 3.2, 0, Math.PI * 2); ctx.fill();
     }
-    for (const pt of this.particles) { ctx.fillStyle = hexToRgba(pt.color, Math.max(0, pt.alpha)); ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2); ctx.fill(); }
-    for (const sw of this.shockwaves) { ctx.strokeStyle = hexToRgba(sw.color, Math.max(0, sw.alpha)); ctx.lineWidth = sw.width; ctx.beginPath(); ctx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2); ctx.stroke(); }
+    for (const pt of this.particles) {
+      const alpha = Math.max(0, pt.alpha);
+      ctx.strokeStyle = hexToRgba(pt.color, alpha * 0.3);
+      ctx.lineWidth = Math.max(0.7, pt.size * 0.7);
+      ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(pt.x - pt.vx * 0.75, pt.y - pt.vy * 0.75); ctx.stroke();
+      ctx.fillStyle = hexToRgba(pt.color, alpha);
+      ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2); ctx.fill();
+      if (pt.size > 2.4) {
+        ctx.fillStyle = `rgba(255,255,255,${alpha * 0.55})`;
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.size * 0.32, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    for (const sw of this.shockwaves) {
+      const alpha = Math.max(0, sw.alpha);
+      ctx.strokeStyle = hexToRgba(sw.color, alpha * 0.28);
+      ctx.lineWidth = sw.width * 2.4;
+      ctx.beginPath(); ctx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = hexToRgba(sw.color, alpha);
+      ctx.lineWidth = Math.max(0.8, sw.width * 0.75);
+      ctx.beginPath(); ctx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2); ctx.stroke();
+    }
     ctx.restore();
 
     for (const sm of this.smokePlumes) { ctx.fillStyle = `rgba(15,23,42,${Math.max(0, sm.alpha)})`; ctx.beginPath(); ctx.arc(sm.x, sm.y, sm.r, 0, Math.PI * 2); ctx.fill(); }
@@ -1175,18 +1275,39 @@ export class Simulation {
         ctx.restore();
         return;
       }
+      ctx.fillStyle = 'rgba(2,6,23,0.3)';
+      ctx.beginPath(); ctx.ellipse(2, 4, 14, 9, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = biome.tower.platform;
+      drawRoundRect(ctx, -14, -14, 28, 28, 7); ctx.fill();
       ctx.fillStyle = sd.flash > 0 ? '#FFFFFF' : biome.tower.wall;
       ctx.strokeStyle = baseObj.empTimer > 0 ? '#22D3EE' : baseObj.color;
-      ctx.lineWidth = 2;
-      drawRoundRect(ctx, -13, -13, 26, 26, 6); ctx.fill(); ctx.stroke();
+      drawRoundRect(ctx, -11, -11, 22, 22, 5); ctx.fill();
+      ctx.strokeStyle = 'rgba(2,6,23,0.78)'; ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.strokeStyle = baseObj.empTimer > 0 ? '#22D3EE' : baseObj.color; ctx.lineWidth = 1.3; ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(-7, -8, 14, 2);
+      ctx.fillStyle = biome.tower.trim;
+      drawRoundRect(ctx, -10, -10, 4, 4, 1); ctx.fill();
+      drawRoundRect(ctx, 6, -10, 4, 4, 1); ctx.fill();
+      drawRoundRect(ctx, -10, 6, 4, 4, 1); ctx.fill();
+      drawRoundRect(ctx, 6, 6, 4, 4, 1); ctx.fill();
 
       ctx.save(); ctx.rotate(sd.angle);
       ctx.fillStyle = baseObj.empTimer > 0 ? '#475569' : biome.tower.trim;
-      ctx.fillRect(0, -2, 12, 4);
+      drawRoundRect(ctx, 0, -2.4, 13, 4.8, 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(2,6,23,0.55)'; ctx.lineWidth = 0.8; ctx.stroke();
       ctx.restore();
+      ctx.fillStyle = baseObj.color;
+      ctx.beginPath(); ctx.arc(0, 0, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.beginPath(); ctx.arc(-0.6, -0.7, 0.65, 0, Math.PI * 2); ctx.fill();
 
-      ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(-14, barY, 28, 3.5);
-      ctx.fillStyle = baseObj.color; ctx.fillRect(-14, barY, 28 * (sd.hp / sd.maxHp), 3.5);
+      ctx.fillStyle = 'rgba(2,6,23,0.78)';
+      drawRoundRect(ctx, -14, barY, 28, 3.5, 1.75); ctx.fill();
+      const hpRatio = Math.max(0, Math.min(1, sd.hp / sd.maxHp));
+      if (hpRatio > 0) {
+        ctx.fillStyle = baseObj.color;
+        drawRoundRect(ctx, -13.5, barY + 0.5, 27 * hpRatio, 2.5, 1.25); ctx.fill();
+      }
       ctx.restore();
     });
   }
@@ -1198,23 +1319,42 @@ export class Simulation {
     const ctx = this.ctx, col = baseObj.flash > 0 ? '#FFFFFF' : baseObj.color;
     ctx.save(); ctx.translate(x, y);
 
+    ctx.fillStyle = 'rgba(2,6,23,0.38)';
+    ctx.beginPath(); ctx.ellipse(3, 16, 29, 11, 0, 0, Math.PI * 2); ctx.fill();
+
     ctx.fillStyle = biome.tower.platform;
     ctx.beginPath();
     for (let s = 0; s < 6; s++) { const a = (Math.PI / 3) * s; if (s === 0) ctx.moveTo(Math.cos(a) * 30, Math.sin(a) * 24); else ctx.lineTo(Math.cos(a) * 30, Math.sin(a) * 24); }
     ctx.closePath(); ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = biome.tower.stroke; ctx.stroke();
 
     ctx.beginPath();
     for (let s = 0; s < 6; s++) { const a = (Math.PI / 3) * s; if (s === 0) ctx.moveTo(Math.cos(a) * 26, Math.sin(a) * 20); else ctx.lineTo(Math.cos(a) * 26, Math.sin(a) * 20); }
-    ctx.closePath(); ctx.fillStyle = biome.tower.wall; ctx.fill();
+    ctx.closePath();
+    const towerWall = ctx.createLinearGradient(0, -20, 0, 20);
+    towerWall.addColorStop(0, hexToRgba('#FFFFFF', 0.22));
+    towerWall.addColorStop(0.42, biome.tower.wall);
+    towerWall.addColorStop(1, hexToRgba('#0F172A', 0.18));
+    ctx.fillStyle = towerWall; ctx.fill();
     ctx.lineWidth = 2.2; ctx.strokeStyle = baseObj.empTimer > 0 ? '#22D3EE' : biome.tower.stroke; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.26)'; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.ellipse(0, -8, 15, 4.5, 0, Math.PI, Math.PI * 2); ctx.stroke();
 
+    ctx.save();
+    ctx.shadowColor = hexToRgba(biome.tower.gem, 0.7);
+    ctx.shadowBlur = 8;
     ctx.fillStyle = baseObj.empTimer > 0 ? '#22D3EE' : biome.tower.gem;
-    ctx.beginPath(); ctx.arc(0, 0, 6.5, 0, Math.PI * 2); ctx.fill();
-    ctx.lineWidth = 1.4; ctx.strokeStyle = col; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -7); ctx.lineTo(5.5, -1); ctx.lineTo(3.5, 6); ctx.lineTo(-3.5, 6); ctx.lineTo(-5.5, -1); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = col; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.56)';
+    ctx.beginPath(); ctx.moveTo(0, -5); ctx.lineTo(1.7, -1); ctx.lineTo(-1.6, -1); ctx.closePath(); ctx.fill();
 
     [{ dx: -20, dy: isTop ? 9 : -9 }, { dx: 20, dy: isTop ? 9 : -9 }].forEach((off, idx) => {
       ctx.save(); ctx.translate(off.dx, off.dy); ctx.rotate(baseObj.turretAngles[idx]);
-      ctx.fillStyle = baseObj.empTimer > 0 ? '#475569' : biome.tower.trim; ctx.fillRect(0, -1.6, 10, 3.2);
+      ctx.fillStyle = baseObj.empTimer > 0 ? '#475569' : biome.tower.trim;
+      drawRoundRect(ctx, 0, -1.8, 11, 3.6, 1.5); ctx.fill();
+      ctx.strokeStyle = 'rgba(2,6,23,0.58)'; ctx.lineWidth = 0.7; ctx.stroke();
       ctx.restore();
     });
 

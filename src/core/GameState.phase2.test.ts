@@ -14,6 +14,8 @@ import {
   listPersistenceSnapshots,
   restorePersistenceSnapshot,
   prunePersistenceSnapshots,
+  prepareNewTournament,
+  prepareWorldCup,
   recordGift,
   resetSession,
   saveNow,
@@ -22,6 +24,7 @@ import {
   state,
   WORLD_ROSTER,
 } from './GameState';
+import { createEmptyWorldCup } from '../systems/WorldCup';
 
 class FakeStorage implements Storage {
   private values = new Map<string, string>();
@@ -41,6 +44,7 @@ describe('Fase 2 - ciclo de round', () => {
     state.teamA = makeBaseState(WORLD_ROSTER[0], true);
     state.teamB = makeBaseState(WORLD_ROSTER[1], false);
     state.teamRecords = {};
+    state.worldCup = createEmptyWorldCup();
     state.playerRecords = {};
     state.sessionMVP = {};
     state.roundMVP = {};
@@ -75,11 +79,58 @@ describe('Fase 2 - ciclo de round', () => {
     vi.useRealTimers();
   });
 
-  it('ofrece 50 selecciones con claves únicas en el preset mundial', () => {
-    expect(WORLD_ROSTER).toHaveLength(50);
-    expect(new Set(WORLD_ROSTER.map((team) => team.key)).size).toBe(50);
+  it('ofrece 64 selecciones con claves únicas en el preset mundial', () => {
+    expect(WORLD_ROSTER).toHaveLength(64);
+    expect(new Set(WORLD_ROSTER.map((team) => team.key)).size).toBe(64);
     expect(WORLD_ROSTER.some((team) => team.key === 'MX')).toBe(true);
     expect(WORLD_ROSTER.some((team) => team.key === 'AR')).toBe(true);
+  });
+
+  it('prepara un torneo nuevo con los dos primeros equipos sin borrar MVP de sesión', () => {
+    state.roster = structuredClone(LIGAMX_ROSTER);
+    state.teamA.wins = 6;
+    state.teamA.streak = 4;
+    state.rosterCursor = 9;
+    state.tournamentMode = false;
+    state.viewerTeams.set('@old-viewer', 'B');
+    state.sessionMVP = {
+      '@Keep': { user: '@Keep', team: 'A', avatarUrl: '', score: 12 },
+    };
+
+    prepareNewTournament();
+
+    expect(state.teamA.key).toBe('AME');
+    expect(state.teamB.key).toBe('ATL');
+    expect(state.teamA.wins).toBe(0);
+    expect(state.teamA.streak).toBe(0);
+    expect(state.rosterCursor).toBe(2);
+    expect(state.tournamentMode).toBe(true);
+    expect(state.viewerTeams.get('@old-viewer')).toBeUndefined();
+    expect(state.sessionMVP['@Keep']?.score).toBe(12);
+  });
+
+  it('persiste los 64 equipos y reanuda el cruce de Copa Mundial', () => {
+    prepareWorldCup();
+    const openingMatch = state.worldCup.rounds[0][0];
+    saveNow();
+    state.roster = structuredClone(LIGAMX_ROSTER);
+    state.worldCup = createEmptyWorldCup();
+
+    loadPersistentState();
+
+    expect(state.roster).toHaveLength(64);
+    expect(state.worldCup.status).toBe('in_progress');
+    expect(state.teamA.key).toBe(openingMatch.teamA?.key);
+    expect(state.teamB.key).toBe(openingMatch.teamB?.key);
+  });
+
+  it('mantiene los partidos de Copa fuera de la tabla de temporada regular', () => {
+    prepareWorldCup();
+    const standingsBefore = structuredClone(state.currentSeason.standings);
+
+    finalizeRound('A');
+
+    expect(state.currentSeason.standings).toEqual(standingsBefore);
   });
 
   it('ofrece los 18 equipos de Liga MX con claves únicas', () => {

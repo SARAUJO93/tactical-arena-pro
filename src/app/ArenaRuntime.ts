@@ -29,7 +29,9 @@ export function consumeAccumulator(
 interface ArenaRuntimeDependencies {
   elixir: ElixirSystem;
   simulation: Simulation;
-  activateSuddenDeath: () => void;
+  activateSuddenDeath: (atTimerEnd?: boolean) => void;
+  activateTowerDecay: () => void;
+  applyTowerDecay: () => void;
   updateFrenzyGaugeUI: () => void;
   syncTimerPill: () => void;
 }
@@ -76,10 +78,18 @@ export class ArenaRuntime {
     if (state.telemetryOpen) renderTelemetry();
     if (!state.roundActive) return;
 
-    if (!state.suddenDeathActive) {
-      state.roundTimeLeft = Math.max(0, state.roundTimeLeft - 1);
-      if (state.roundTimeLeft === 0) this.deps.activateSuddenDeath();
+    if (state.towerDecayActive) {
+      this.deps.applyTowerDecay();
+      this.deps.syncTimerPill();
+      return;
     }
+
+    state.roundTimeLeft = Math.max(0, state.roundTimeLeft - 1);
+    if (state.roundTimeLeft === 0) {
+      if (state.suddenDeathActive) this.deps.activateTowerDecay();
+      else this.deps.activateSuddenDeath(true);
+    }
+
     if (state.frenzyActive) {
       state.frenzyTimeLeft = Math.max(0, state.frenzyTimeLeft - 1);
       if (state.frenzyTimeLeft === 0) {
@@ -93,12 +103,15 @@ export class ArenaRuntime {
     (['A', 'B'] as TeamId[]).forEach((team) => {
       const base = team === 'A' ? state.teamA : state.teamB;
       const shieldBadge = document.getElementById(`shieldBadge${team}`);
+      const shieldTimer = document.getElementById(`shieldTimer${team}`);
       const empBadge = document.getElementById(`empBadge${team}`);
+      const empTimer = document.getElementById(`empTimer${team}`);
       const card = document.getElementById(`cardBase${team}`);
       if (base.shieldTimer > 0 && base.shieldHp > 0) {
         base.shieldTimer--;
-        if (shieldBadge) {
-          shieldBadge.textContent = `🛡️ ${base.shieldTimer}s`;
+        if (shieldBadge && shieldTimer) {
+          shieldTimer.textContent = `${base.shieldTimer}s`;
+          shieldBadge.setAttribute('aria-label', `Escudo activo: ${base.shieldTimer} segundos`);
           shieldBadge.classList.remove('hidden');
         }
       } else {
@@ -107,8 +120,9 @@ export class ArenaRuntime {
       }
       if (base.empTimer > 0) {
         base.empTimer--;
-        if (empBadge) {
-          empBadge.textContent = `⚡ EMP ${base.empTimer}s`;
+        if (empBadge && empTimer) {
+          empTimer.textContent = `${base.empTimer}s`;
+          empBadge.setAttribute('aria-label', `Pulso EMP activo: ${base.empTimer} segundos`);
           empBadge.classList.remove('hidden');
         }
         card?.classList.add('emp-hit');
@@ -120,7 +134,7 @@ export class ArenaRuntime {
   }
 
   tickDemoStep(random = Math.random): void {
-    if (!state.roundActive || !state.demoMode || state.takeoverActive) return;
+    if (!state.roundActive || state.towerDecayActive || !state.demoMode || state.takeoverActive) return;
     if (Date.now() - state.lastRealInteractionAt < REAL_INTERACTION_GRACE_MS) return;
 
     const viewer = DEMO_USERS[Math.floor(random() * DEMO_USERS.length)];
@@ -150,16 +164,18 @@ export class ArenaRuntime {
     this.demoAccumulator = demo.accumulator;
     for (let i = 0; i < demo.elapsedIntervals; i++) this.tickDemoStep();
 
-    this.deps.elixir.update(dtSec, {
-      roundActive: state.roundActive,
-      roundTimeLeft: state.roundTimeLeft,
-      suddenDeathActive: state.suddenDeathActive,
-      frenzyActive: state.frenzyActive,
-      timeScale: state.timeScale,
-      aiDirectorEnabled: state.aiDirectorEnabled,
-      unitCountByTeam: (team) => this.deps.simulation.getUnitCount(team),
-      jetCountByTeam: (team) => this.deps.simulation.getJetCount(team),
-    });
+    if (!state.towerDecayActive) {
+      this.deps.elixir.update(dtSec, {
+        roundActive: state.roundActive,
+        roundTimeLeft: state.roundTimeLeft,
+        suddenDeathActive: state.suddenDeathActive,
+        frenzyActive: state.frenzyActive,
+        timeScale: state.timeScale,
+        aiDirectorEnabled: state.aiDirectorEnabled,
+        unitCountByTeam: (team) => this.deps.simulation.getUnitCount(team),
+        jetCountByTeam: (team) => this.deps.simulation.getJetCount(team),
+      });
+    }
     this.deps.simulation.update(dtSec * 60);
     this.deps.simulation.render();
     this.frameId = requestAnimationFrame((next) => this.loop(next));

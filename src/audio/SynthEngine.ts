@@ -26,6 +26,26 @@ interface BiomeTrack {
   strings: number[][];
 }
 
+type TrackLine = (number | null)[];
+type BarOffsets = [number, number, number, number];
+
+function expandTrackLine(pattern: TrackLine, offsets: BarOffsets): TrackLine {
+  if (pattern.length !== 16) throw new Error('Biome music motifs must contain 16 steps');
+  return offsets.flatMap((offset) => pattern.map((note) => note === null ? null : note + offset));
+}
+
+function makeBiomeTrack(
+  settings: Omit<BiomeTrack, 'bass' | 'brass' | 'counter'>,
+  motifs: { bass: TrackLine; brass: TrackLine; counter: TrackLine; offsets: BarOffsets },
+): BiomeTrack {
+  return {
+    ...settings,
+    bass: expandTrackLine(motifs.bass, motifs.offsets),
+    brass: expandTrackLine(motifs.brass, motifs.offsets),
+    counter: expandTrackLine(motifs.counter, motifs.offsets),
+  };
+}
+
 const BIOME_TRACKS: Record<BiomeTheme['id'], BiomeTrack> = {
   // 1. Bosque Ancestral — Marcha Real Heroica en Re menor (Dm -> Bb -> C -> A7)
   grove: {
@@ -170,6 +190,132 @@ const BIOME_TRACKS: Record<BiomeTheme['id'], BiomeTrack> = {
       [50, 54, 57, 62],
     ],
   },
+  'sky-temple': makeBiomeTrack({
+    baseBpm: 116,
+    brassWave: 'triangle',
+    brassCutoff: 2250,
+    stringCutoff: 2650,
+    accentKind: 'bell',
+    snareSteps: [4, 12],
+    hatSteps: [0, 8, 12],
+    accentSteps: [2, 10],
+    strings: [
+      [53, 60, 65, 69],
+      [46, 53, 58, 62],
+      [48, 55, 60, 64],
+      [43, 50, 55, 59],
+    ],
+  }, {
+    offsets: [0, -5, -2, -7],
+    bass: [41, null, null, 41, null, 48, null, null, 41, null, 45, null, 48, null, 45, null],
+    brass: [72, null, null, 76, 79, null, null, 76, 84, null, 81, null, 79, null, 76, null],
+    counter: [84, null, 81, null, 79, null, 76, null, 79, null, 81, null, 84, null, 88, null],
+  }),
+  abyss: makeBiomeTrack({
+    baseBpm: 108,
+    brassWave: 'triangle',
+    brassCutoff: 1250,
+    stringCutoff: 1900,
+    accentKind: 'bell',
+    snareSteps: [12],
+    hatSteps: [0, 8],
+    accentSteps: [4, 12],
+    strings: [
+      [50, 57, 62, 65],
+      [47, 54, 59, 62],
+      [52, 59, 64, 67],
+      [45, 52, 57, 60],
+    ],
+  }, {
+    offsets: [0, -3, 2, -5],
+    bass: [38, null, null, null, 45, null, null, 38, null, null, 41, null, null, 45, null, null],
+    brass: [62, null, null, 65, null, null, 69, null, 72, null, null, 69, null, 65, null, null],
+    counter: [74, null, null, null, 69, null, 65, null, 72, null, null, null, 67, null, 64, null],
+  }),
+  'crystal-cavern': makeBiomeTrack({
+    baseBpm: 122,
+    brassWave: 'sine',
+    brassCutoff: 2850,
+    stringCutoff: 2450,
+    accentKind: 'bell',
+    snareSteps: [4, 14],
+    hatSteps: [0, 3, 8, 11],
+    accentSteps: [0, 6, 10, 14],
+    strings: [
+      [45, 52, 57, 61],
+      [48, 55, 60, 64],
+      [50, 57, 62, 65],
+      [43, 50, 55, 59],
+    ],
+  }, {
+    offsets: [0, 3, 5, -2],
+    bass: [33, null, 40, null, null, 45, null, 40, 33, null, 36, null, 40, null, 45, null],
+    brass: [69, null, 73, null, 76, null, 80, null, 81, null, 80, null, 76, null, 73, null],
+    counter: [81, null, 76, null, null, 73, null, 76, 85, null, 81, null, 76, null, 73, null],
+  }),
+  'neon-city': makeBiomeTrack({
+    baseBpm: 136,
+    brassWave: 'square',
+    brassCutoff: 1750,
+    stringCutoff: 1550,
+    accentKind: 'wood',
+    snareSteps: [4, 12, 14],
+    hatSteps: [0, 2, 4, 6, 8, 10, 12, 14],
+    accentSteps: [3, 7, 11, 15],
+    strings: [
+      [42, 49, 54, 58],
+      [46, 53, 58, 62],
+      [49, 56, 61, 65],
+      [44, 51, 56, 60],
+    ],
+  }, {
+    offsets: [0, 4, 7, 2],
+    bass: [30, null, 30, null, 37, null, 30, null, 30, null, 33, null, 37, null, 33, null],
+    brass: [66, null, 69, 73, null, 76, null, 73, 78, null, 76, null, 73, 69, null, null],
+    counter: [78, null, 73, null, 76, null, 73, null, 81, null, 78, null, 76, null, 73, null],
+  }),
+  'haunted-marsh': makeBiomeTrack({
+    baseBpm: 112,
+    brassWave: 'triangle',
+    brassCutoff: 1350,
+    stringCutoff: 1180,
+    accentKind: 'wood',
+    snareSteps: [6, 14],
+    hatSteps: [0, 6, 8, 14],
+    accentSteps: [2, 10, 14],
+    strings: [
+      [40, 47, 52, 56],
+      [43, 50, 55, 59],
+      [38, 45, 50, 54],
+      [41, 48, 53, 57],
+    ],
+  }, {
+    offsets: [0, 3, -2, 1],
+    bass: [28, null, null, 28, null, 35, null, null, 28, null, 31, null, 35, null, 31, null],
+    brass: [60, null, null, 63, null, 67, null, null, 65, null, 63, null, 60, null, null, null],
+    counter: [72, null, 67, null, null, 63, null, 67, 70, null, 67, null, null, 63, null, 60],
+  }),
+  stormfront: makeBiomeTrack({
+    baseBpm: 144,
+    brassWave: 'sawtooth',
+    brassCutoff: 2650,
+    stringCutoff: 1850,
+    accentKind: 'anvil',
+    snareSteps: [4, 8, 12, 14],
+    hatSteps: [0, 2, 4, 6, 8, 10, 12, 14],
+    accentSteps: [2, 6, 10, 14],
+    strings: [
+      [43, 50, 55, 58],
+      [46, 53, 58, 62],
+      [41, 48, 53, 57],
+      [48, 55, 60, 64],
+    ],
+  }, {
+    offsets: [0, -3, -2, 5],
+    bass: [31, null, 31, null, 38, null, 31, null, 31, null, 34, null, 38, null, 34, null],
+    brass: [67, null, 70, null, 74, null, 77, null, 79, null, 77, null, 74, null, 70, null],
+    counter: [79, null, 74, null, 70, null, 74, null, 82, null, 79, null, 77, null, 74, null],
+  }),
 };
 
 export class SynthEngine {

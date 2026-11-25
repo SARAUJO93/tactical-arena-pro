@@ -1,7 +1,9 @@
 import './style.css';
 import { bus, TeamId } from './core/EventBus';
 import {
-  loadPersistentState, makeSideDefenseState, MAX_BASE_HP,
+  loadPersistentState, makeBaseState, makeSideDefenseState, MAX_BASE_HP,
+  prepareNewTournament,
+  prepareWorldCup,
   savePersistentState, state, TeamPreset,
   // Fase A
   beginRound, finalizeRound, resetIfNeeded, resetSession as resetSessionState,
@@ -17,7 +19,7 @@ import { logWsEvent, recordTelemetryGift, renderTelemetry } from './systems/Tele
 import { escapeHtml } from './utils/helpers';
 import { SettingsPanel } from './ui/SettingsPanel';
 import { initInputShortcuts } from './ui/InputShortcuts';
-import { cycleNextBiome, getActiveBiome, getBiomeProgressText, setActiveBiome } from './config/biomes';
+import { BIOMES, BiomeTheme, cycleNextBiome, getActiveBiome, getBiomeProgressText, setActiveBiome } from './config/biomes';
 import { renderTeamFlagHtml } from './ui/FlagRenderer';
 import { NotificationDock } from './ui/NotificationDock';
 import { consumeTapRewards } from './utils/tapRewards';
@@ -32,7 +34,12 @@ import {
   MVP_PARTICIPATION_POINTS,
   RoundImpactLimiter,
 } from './systems/BalanceEconomy';
-import { PersonalProgressTracker } from './systems/PersonalProgress';
+import {
+  getBiomeExplorationProgress,
+  PersonalProgressTracker,
+  recordBiomeExploration,
+} from './systems/PersonalProgress';
+import { BiomeVoteSystem } from './systems/BiomeVoteSystem';
 import { FactionGoalSystem, getTeamCaptain } from './systems/FactionGoals';
 import {
   getCosmeticFrameFromBadges,
@@ -40,6 +47,9 @@ import {
   syncSeasonPassBadges,
 } from './systems/SeasonPass';
 import { getWeeklyEventForDate } from './systems/WeeklySchedule';
+import { recordWorldCupWinner } from './systems/WorldCup';
+import { advanceTowerDecay, getCrownScore, getDefenseHealthPercent, resolveTimeoutWinner } from './systems/CrownScoring';
+import type { TimeoutDecisionReason } from './systems/CrownScoring';
 
 const $ = (id: string) => document.getElementById(id)!;
 const notificationDock = new NotificationDock($);
@@ -50,7 +60,9 @@ const externalObservability = new ExternalObservability('3.2.0');
 const impactLimiter = new RoundImpactLimiter();
 const personalProgress = new PersonalProgressTracker();
 const factionGoals = new FactionGoalSystem();
+const biomeVote = new BiomeVoteSystem();
 const lastJoinAnnounceAt = new Map<string, number>();
+let nextBiomeOverride: BiomeTheme['id'] | null = null;
 
 const sim = new Simulation(
   $('arenaCanvas') as HTMLCanvasElement,
@@ -60,7 +72,7 @@ const sim = new Simulation(
   $('cardBaseB'),
   synth,
   () => { updateBaseHUD(); updatePanicAlerts(); },
-  (winner) => triggerVictory(winner)
+  (winner, reason) => triggerVictory(winner, reason)
 );
 
 // =========================================================================
@@ -79,13 +91,18 @@ bus.on('elixir:updated', ({ team, elixir: val, maxElixir, queueLength }) => {
   prev.queueLen = queueLength;
 
   const fill = document.getElementById(`elixirFill${team}`);
-  const lbl = document.getElementById(`elixirVal${team}`);
-  const qLbl = document.getElementById(`queueVal${team}`);
+  const elixirValue = document.getElementById(`elixirValue${team}`);
+  const queueBadge = document.getElementById(`queueVal${team}`);
+  const queueValue = document.getElementById(`queueValue${team}`);
   if (fill) fill.style.width = `${Math.min(100, (val / maxElixir) * 100)}%`;
-  if (lbl) lbl.textContent = `⚡${valText}`;
-  if (qLbl) {
-    qLbl.textContent = `⏳${queueLength}`;
-    qLbl.classList.toggle('hidden', queueLength === 0);
+  if (elixirValue) {
+    elixirValue.textContent = valText;
+    elixirValue.parentElement?.setAttribute('aria-label', `Elixir: ${valText}`);
+  }
+  if (queueBadge && queueValue) {
+    queueValue.textContent = String(queueLength);
+    queueBadge.setAttribute('aria-label', `Unidades en cola: ${queueLength}`);
+    queueBadge.classList.toggle('hidden', queueLength === 0);
   }
 });
 
@@ -105,23 +122,35 @@ function updateBaseHUD(): void {
   const bLeads = state.roundActive && state.teamB.hp > state.teamA.hp;
   $('cardBaseA').classList.toggle('leading', aLeads);
   $('cardBaseB').classList.toggle('leading', bLeads);
+
+  (['A', 'B'] as TeamId[]).forEach((team) => {
+    const base = team === 'A' ? state.teamA : state.teamB;
+    const crowns = getCrownScore(base);
+    const health = Math.round(getDefenseHealthPercent(base));
+    $(`crownCount${team}`).textContent = String(crowns);
+    $(`crownBadge${team}`).setAttribute('aria-label', `${crowns} coronas`);
+    $(`towerHealth${team}`).textContent = `${health}%`;
+    $(`towerHealth${team}`).setAttribute('aria-label', `Vida total de torres y núcleo: ${health}%`);
+  });
 }
 
 function updateFactionHUD(): void {
   (['A', 'B'] as TeamId[]).forEach((team) => {
     const snap = factionGoals.getSnapshot(team);
     const fill = document.getElementById(`factionGoalFill${team}`);
-    const text = document.getElementById(`factionGoalText${team}`);
-    const capEl = document.getElementById(`captain${team}`);
+    const goalValue = document.getElementById(`factionGoalValue${team}`);
+    const goalLabel = document.getElementById(`factionGoalText${team}`);
+    const capValue = document.getElementById(`captainValue${team}`);
 
     if (fill) fill.style.width = `${snap.pct}%`;
-    if (text) text.textContent = `🛡️ ${snap.likes}/${snap.target}`;
+    if (goalValue) goalValue.textContent = `${snap.likes}/${snap.target}`;
+    goalLabel?.setAttribute('aria-label', `Meta de facción: ${snap.likes} de ${snap.target}`);
 
-    if (capEl) {
+    if (capValue) {
       const cap = getTeamCaptain(team, state.roundMVP, state.sessionMVP);
-      capEl.textContent = cap
-        ? `🎖️ Cap: ${cap.user.replace('@', '').slice(0, 9)}`
-        : '🎖️ Cap: —';
+      capValue.textContent = cap
+        ? `Cap: ${cap.user.replace('@', '').slice(0, 9)}`
+        : 'Cap: —';
     }
   });
 }
@@ -181,19 +210,24 @@ function updateFrenzyGaugeUI(): void {
 
 function syncTimerPill(): void {
   const pill = $('timerPill');
-  if (state.suddenDeathActive) {
+  if (state.towerDecayActive) {
     pill.classList.remove('frenzy');
     pill.classList.add('sudden');
-    $('timerIcon').textContent = '💀';
-    $('timerText').textContent = 'x3⚡';
+    $('timerIcon').dataset.mode = 'sudden';
+    $('timerText').textContent = 'COLAPSO';
+  } else if (state.suddenDeathActive) {
+    pill.classList.remove('frenzy');
+    pill.classList.add('sudden');
+    $('timerIcon').dataset.mode = 'sudden';
+    $('timerText').textContent = `${String(Math.floor(state.roundTimeLeft / 60)).padStart(2, '0')}:${String(state.roundTimeLeft % 60).padStart(2, '0')}`;
   } else if (state.frenzyActive) {
     pill.classList.remove('sudden');
     pill.classList.add('frenzy');
-    $('timerIcon').textContent = '⚡';
+    $('timerIcon').dataset.mode = 'frenzy';
     $('timerText').textContent = `x2 · ${state.frenzyTimeLeft}s`;
   } else {
     pill.classList.remove('sudden', 'frenzy');
-    $('timerIcon').textContent = '⏱️';
+    $('timerIcon').dataset.mode = 'normal';
     $('timerText').textContent = `${String(Math.floor(state.roundTimeLeft / 60)).padStart(2, '0')}:${String(state.roundTimeLeft % 60).padStart(2, '0')}`;
   }
 }
@@ -207,6 +241,8 @@ function updateOnboardingTicker(): void {
     `❤️ ${state.personalTapThreshold} Taps = Tropas`,
     `🛡️ ${goalLikes} Likes = Escudo de Bando`,
     `🎟️ Sube tu Pase Gratis con Taps`,
+    '🧭 Participa en 3 biomas y desbloquea el marco Explorador',
+    '🤝 Los taps sin equipo apoyan al bando que va perdiendo',
   ];
   const tip = tips[tickerIdx % tips.length];
   tickerIdx++;
@@ -234,6 +270,35 @@ function pushNotificationDock(
   durationMs = 2600
 ): void {
   notificationDock.push(title, sub, color, avatarUrl, user, glyph, tag, durationMs);
+}
+
+function renderBiomeVote(): void {
+  const element = $('vicBiomeVote');
+  const snapshot = biomeVote.getSnapshot();
+  if (!snapshot) {
+    element.classList.add('hidden');
+    return;
+  }
+  element.classList.remove('hidden');
+  element.textContent =
+    `🗺️ ¡VOTA! Escribe 1 o 2 · 1 ${snapshot.first.icon} ${snapshot.first.name} (${snapshot.votesFirst})` +
+    ` · 2 ${snapshot.second.icon} ${snapshot.second.name} (${snapshot.votesSecond}) · Empate: gana 1`;
+}
+
+function openBiomeVote(weeklyBiomeId: BiomeTheme['id'] | null): void {
+  if (weeklyBiomeId) {
+    biomeVote.reset();
+    $('vicBiomeVote').classList.remove('hidden');
+    $('vicBiomeVote').textContent = `🗓️ Bioma semanal fijo: ${getActiveBiome().name}`;
+    return;
+  }
+
+  const activeIndex = BIOMES.findIndex((biome) => biome.id === getActiveBiome().id);
+  const startIndex = activeIndex < 0 ? 0 : activeIndex;
+  const first = BIOMES[(startIndex + 1) % BIOMES.length];
+  const second = BIOMES[(startIndex + 2) % BIOMES.length];
+  biomeVote.start([first, second]);
+  renderBiomeVote();
 }
 
 function announceActiveBiome(): void {
@@ -307,8 +372,16 @@ function addMVPPoints(user: string, team: TeamId, avatarUrl: string, points: num
 function renderTop3MVP(): void {
   const src = Object.keys(state.sessionMVP).length ? state.sessionMVP : state.roundMVP;
   const top = Object.values(src).sort((a, b) => b.score - a.score).slice(0, 3);
-  if (!top.length) { $('mvpStrip').innerHTML = `<div style="font-size:8.5px;color:#94A3B8;padding:0 4px;">👑 Top 3 MVP</div>`; return; }
-  const medals = ['👑', '🥈', '🥉'], rings = ['#FBBF24', '#CBD5E1', '#D97706'];
+  if (!top.length) {
+    $('mvpStrip').innerHTML = '<div class="mvp-heading"><svg class="ui-icon" aria-hidden="true"><use href="#icon-crown"></use></svg><span>Top 3 MVP</span></div>';
+    return;
+  }
+  const medals = [
+    '<svg class="ui-icon mvp-rank-icon mvp-rank-gold" aria-hidden="true"><use href="#icon-crown"></use></svg>',
+    '<svg class="ui-icon mvp-rank-icon mvp-rank-silver" aria-hidden="true"><use href="#icon-medal"></use></svg>',
+    '<svg class="ui-icon mvp-rank-icon mvp-rank-bronze" aria-hidden="true"><use href="#icon-medal"></use></svg>',
+  ];
+  const rings = ['#FBBF24', '#CBD5E1', '#D97706'];
   $('mvpStrip').innerHTML = top.map((m, idx) => {
     const av = getAvatar(m.avatarUrl, m.user);
     const tCol = m.team === 'A' ? state.teamA.color : state.teamB.color;
@@ -321,7 +394,7 @@ function renderTop3MVP(): void {
     return `<div class="mvp-item">
       <div style="position:relative;flex-shrink:0;">
         <img src="${av.dataUrl}" alt="" style="width:16px;height:16px;border-radius:50%;object-fit:cover;border:1.5px solid ${borderCol};display:block;" />
-        <span style="position:absolute;top:-5px;left:-4px;font-size:7px;line-height:1;">${medals[idx]}</span>
+        <span class="mvp-rank-badge">${medals[idx]}</span>
       </div>
       <div style="min-width:0;line-height:1.1;">
         <div style="font-size:8px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:2px;">
@@ -363,6 +436,22 @@ function trackTapForViewer(user: string, avatarUrl: string, team: TeamId | null,
     rec.teamsSupported[team] = (rec.teamsSupported[team] ?? 0) + count;
   }
   state.currentRoundTaps += count;
+  const exploration = recordBiomeExploration(rec.badges, getActiveBiome().id);
+  if (exploration.newBiome) {
+    savePersistentState();
+    pushNotificationDock(
+      exploration.newlyUnlocked ? '🧭 MARCO EXPLORADOR DESBLOQUEADO' : `${user} · Exploración ${exploration.visited}/${exploration.target}`,
+      exploration.newlyUnlocked
+        ? 'Participaste en tres biomas distintos. Recompensa cosmética gratis.'
+        : 'Apoya con taps en otros biomas para desbloquear tu marco.',
+      '#A3E635',
+      avatarUrl,
+      user,
+      '🧭',
+      exploration.newlyUnlocked ? 'RECOMPENSA' : 'META',
+      2400
+    );
+  }
   checkSeasonPassUnlock(user, avatarUrl);
 }
 
@@ -411,7 +500,7 @@ function endTakeovers(): void {
 
 function runNextTakeover(): void {
   const job = takeoverQueue.shift();
-  if (!job || !state.roundActive) { endTakeovers(); return; }
+  if (!job || !state.roundActive || state.towerDecayActive) { endTakeovers(); return; }
   const enemyObj = job.team === 'A' ? state.teamB : state.teamA;
   const { scale, useCount } = impactLimiter.consume(job.team, 'nuclear');
   const scaleTag = useCount > 1 ? ` (${Math.round(scale * 100)}%)` : '';
@@ -425,18 +514,18 @@ function runNextTakeover(): void {
   $('whaleTakeover').classList.remove('hidden');
 
   takeoverTimer = setTimeout(() => {
-    if (state.roundActive) {
+    if (state.roundActive && !state.towerDecayActive) {
       sim.spawnOrbital(job.team, job.clean, job.avatarUrl, scale);
       const bonusElixir = Math.max(1, Math.round((state.frenzyActive ? 5 : 3) * scale));
       elixir.addElixir(job.team, bonusElixir);
     }
-    if (takeoverQueue.length && state.roundActive) runNextTakeover();
+    if (takeoverQueue.length && state.roundActive && !state.towerDecayActive) runNextTakeover();
     else endTakeovers();
   }, 2600);
 }
 
 bus.on('action:instant', ({ team, kind, user, avatarUrl, giftName, mult = 1 }) => {
-  if (!state.roundActive) return;
+  if (!state.roundActive || state.towerDecayActive) return;
   if (kind === 'SHIELD') {
     const base = team === 'A' ? state.teamA : state.teamB;
     const heal = Math.round(MAX_BASE_HP * 0.15 * mult);
@@ -481,6 +570,13 @@ bus.on('action:instant', ({ team, kind, user, avatarUrl, giftName, mult = 1 }) =
 });
 
 bus.on('game:chat', ({ user, comment, avatarUrl }) => {
+  if (state.towerDecayActive) return;
+  if (!state.roundActive) {
+    const snapshot = biomeVote.castVote(user, comment);
+    if (snapshot) renderBiomeVote();
+    return;
+  }
+
   const aligned = registerChatAlignment(user, comment);
   if (!aligned || !state.roundActive) return;
   const clean = user.startsWith('@') ? user : `@${user}`;
@@ -508,7 +604,7 @@ bus.on('game:chat', ({ user, comment, avatarUrl }) => {
 // TAP · FASE A + PROGRESO PERSONAL + METAS DE BANDO + PASE
 // =========================================================================
 bus.on('game:tap', ({ user, count, avatarUrl, forcedTeam, isDemo = false }) => {
-  if (!state.roundActive) return;
+  if (!state.roundActive || state.towerDecayActive) return;
   if (!isDemo) state.lastRealInteractionAt = Date.now();
 
   const clean = (user || 'Viewer').startsWith('@') ? user : `@${user || 'Viewer'}`;
@@ -582,7 +678,7 @@ bus.on('game:tap', ({ user, count, avatarUrl, forcedTeam, isDemo = false }) => {
 // FOLLOW · FASE A + PROGRESO PERSONAL
 // =========================================================================
 bus.on('game:follow', ({ user, avatarUrl, isDemo = false }) => {
-  if (!state.roundActive) return;
+  if (!state.roundActive || state.towerDecayActive) return;
   if (!isDemo) {
     state.lastRealInteractionAt = Date.now();
     state.telemetry.totalFollows++;
@@ -610,7 +706,7 @@ bus.on('game:follow', ({ user, avatarUrl, isDemo = false }) => {
 // SHARE · FASE A + PROGRESO PERSONAL
 // =========================================================================
 bus.on('game:share', ({ user, avatarUrl, isDemo = false }) => {
-  if (!state.roundActive) return;
+  if (!state.roundActive || state.towerDecayActive) return;
   if (!isDemo) {
     state.lastRealInteractionAt = Date.now();
     state.telemetry.totalShares++;
@@ -643,7 +739,7 @@ bus.on('game:share', ({ user, avatarUrl, isDemo = false }) => {
 // GIFT · FASE A + ECONOMÍA BALANCEADA + PROGRESO PERSONAL
 // =========================================================================
 bus.on('game:gift', ({ team, tier, delta, user, giftName, avatarUrl, coins, isDemo = false }) => {
-  if (!state.roundActive || delta <= 0) return;
+  if (!state.roundActive || state.towerDecayActive || delta <= 0) return;
   if (!isDemo) {
     state.lastRealInteractionAt = Date.now();
     recordTelemetryGift(giftName, delta, coins || 1);
@@ -719,7 +815,7 @@ bus.on('game:gift', ({ team, tier, delta, user, giftName, avatarUrl, coins, isDe
 // FRENESÍ, MUERTE SÚBITA, VICTORIA Y RESET · FASE A
 // =========================================================================
 function activateFrenzy(): void {
-  if (!state.roundActive) return;
+  if (!state.roundActive || state.towerDecayActive) return;
   state.frenzyActive = true; state.frenzyTimeLeft = 20; state.globalTapCount = 0;
   $('frenzyVignette').classList.add('active');
   updateFrenzyGaugeUI();
@@ -729,28 +825,76 @@ function activateFrenzy(): void {
   elixir.addElixir('A', 2.5); elixir.addElixir('B', 2.5);
 }
 
-function activateSuddenDeath(): void {
-  if (!state.roundActive || state.suddenDeathActive) return;
-  state.suddenDeathActive = true; state.roundTimeLeft = 0;
+function activateSuddenDeath(atTimerEnd = false): void {
+  if (!state.roundActive || state.suddenDeathActive || state.towerDecayActive) return;
+  if (atTimerEnd) {
+    const decision = resolveTimeoutWinner(state.teamA, state.teamB);
+    if (decision) {
+      triggerVictory(decision.winner, decision.reason);
+      return;
+    }
+  }
+  state.suddenDeathActive = true;
+  state.roundTimeLeft = state.suddenDeathDurationSec;
   $('suddenDeathVignette').classList.add('active');
   syncTimerPill();
-  pushNotificationDock('💀 MUERTE SÚBITA', 'Elixir x3 • Daño x2 • BPM +18%', '#ef4444', '', '', '💀', 'FINAL', 3200);
+  pushNotificationDock('💀 MUERTE SÚBITA · 01:00', 'La primera torre que caiga decide la ronda', '#ef4444', '', '', '💀', 'FINAL', 4200);
   synth.duck(2400); synth.playSFX('sudden_horn');
+}
+
+function activateTowerDecay(): void {
+  if (!state.roundActive || !state.suddenDeathActive || state.towerDecayActive) return;
+  state.towerDecayActive = true;
+  state.roundTimeLeft = 0;
+  state.frenzyActive = false;
+  state.frenzyTimeLeft = 0;
+  state.teamA.shieldHp = 0;
+  state.teamA.shieldTimer = 0;
+  state.teamB.shieldHp = 0;
+  state.teamB.shieldTimer = 0;
+  state.teamA.empTimer = 0;
+  state.teamB.empTimer = 0;
+  endTakeovers();
+  $('frenzyVignette').classList.remove('active');
+  $('shieldBadgeA').classList.add('hidden');
+  $('shieldBadgeB').classList.add('hidden');
+  $('empBadgeA').classList.add('hidden');
+  $('empBadgeB').classList.add('hidden');
+  $('cardBaseA').classList.remove('emp-hit');
+  $('cardBaseB').classList.remove('emp-hit');
+  updateFrenzyGaugeUI();
+  syncTimerPill();
+  pushNotificationDock('⏳ COLAPSO DE TORRES', 'Combate detenido · las defensas pierden vida hasta que caiga una', '#ef4444', '', '', '⏳', 'FINAL', 4500);
+  synth.duck(2400); synth.playSFX('sudden_horn');
+}
+
+function applyTowerDecay(): void {
+  if (!state.roundActive || !state.towerDecayActive) return;
+  const tiePriority = state.telemetry.roundCount % 2 === 0 ? 'A' : 'B';
+  const winner = advanceTowerDecay(state.teamA, state.teamB, tiePriority);
+  updateBaseHUD();
+  updatePanicAlerts();
+  if (winner) triggerVictory(winner, 'tower_decay');
 }
 
 let restartTimer: ReturnType<typeof setInterval> | null = null;
 let victoryOverlayTimer: ReturnType<typeof setTimeout> | null = null;
 
-function triggerVictory(winner: TeamId): void {
+function triggerVictory(
+  winner: TeamId,
+  finishReason: TimeoutDecisionReason | 'core' | 'sudden_death_tower' | 'tower_decay' = 'core'
+): void {
   if (!state.roundActive) return;
 
   const weekly = getWeeklyEventForDate();
+  nextBiomeOverride = null;
+  openBiomeVote(weekly.featuredBiomeId);
   const roundLog = finalizeRound(winner, {
-    suddenDeath: state.suddenDeathActive,
+    suddenDeath: state.suddenDeathActive || state.towerDecayActive,
     featured: weekly.isFeatured,
   });
 
-  state.frenzyActive = false; state.suddenDeathActive = false;
+  state.frenzyActive = false; state.suddenDeathActive = false; state.towerDecayActive = false;
   endTakeovers();
   $('frenzyVignette').classList.remove('active');
   $('suddenDeathVignette').classList.remove('active');
@@ -761,7 +905,7 @@ function triggerVictory(winner: TeamId): void {
   winObj.wins++; winObj.streak++; loseObj.streak = 0;
 
   let nextChallenger: TeamPreset | null = null;
-  if (state.tournamentMode && state.roster.length > 2) {
+  if (state.tournamentMode && state.roster.length > 2 && state.worldCup.status !== 'in_progress') {
     for (let i = 0; i < state.roster.length; i++) {
       const c = state.roster[state.rosterCursor % state.roster.length];
       state.rosterCursor = (state.rosterCursor + 1) % state.roster.length;
@@ -771,6 +915,11 @@ function triggerVictory(winner: TeamId): void {
       }
     }
   }
+  const cupWasActive = state.worldCup.status === 'in_progress';
+  const nextWorldCupMatch = cupWasActive
+    ? recordWorldCupWinner(state.worldCup, winObj.key)
+    : null;
+  const worldCupCompleted = cupWasActive && state.worldCup.status === 'completed';
 
   if (roundLog.mvp) checkSeasonPassUnlock(roundLog.mvp.user, roundLog.mvp.avatarUrl);
   savePersistentState();
@@ -795,19 +944,48 @@ function triggerVictory(winner: TeamId): void {
   const mvpRec = state.playerRecords[topRound.user];
   const mvpCosmetic = getCosmeticFrameFromBadges(mvpRec?.badges);
   const seasonPeak = mvpRec ? Math.max(topRound.score, mvpRec.peaks.maxRoundScore) : topRound.score;
+  const exploration = getBiomeExplorationProgress(mvpRec?.badges);
 
   $('vicFlag').innerHTML = renderTeamFlagHtml(winObj.key, winObj.flag, 'hero');
   $('vicName').textContent = winObj.name;
   $('vicName').style.color = winObj.color;
+  const crownScoreA = getCrownScore(state.teamA);
+  const crownScoreB = getCrownScore(state.teamB);
+  const towerHealthA = Math.round(getDefenseHealthPercent(state.teamA));
+  const towerHealthB = Math.round(getDefenseHealthPercent(state.teamB));
+  const decisionLabel = finishReason === 'crowns'
+    ? ' · DECISIÓN POR CORONAS'
+    : finishReason === 'sudden_death_tower'
+      ? ' · TORRE CAÍDA EN MUERTE SÚBITA'
+      : finishReason === 'tower_decay'
+        ? ' · VICTORIA POR COLAPSO DE TORRES'
+        : '';
+  $('vicCrownScore').textContent =
+    `👑 CORONAS ${crownScoreA} — ${crownScoreB} · VIDA ${towerHealthA}% — ${towerHealthB}%${decisionLabel}`;
   const vicAvatar = $('vicMvpAvatar') as HTMLImageElement;
   vicAvatar.src = getAvatar(topRound.avatarUrl, topRound.user).dataUrl;
   vicAvatar.style.borderColor = mvpCosmetic ? mvpCosmetic.ringColor : '#ffd77c';
   $('vicMvpUser').textContent = mvpCosmetic ? `${mvpCosmetic.emblem} ${topRound.user}` : topRound.user;
   $('vicMvpScore').textContent = `${topRound.score.toLocaleString()} pts · Récord S${String(state.currentSeason.index).padStart(2, '0')}: ${seasonPeak.toLocaleString()}`;
+  $('vicNextGoal').textContent = exploration.complete
+    ? '🧭 Marco Explorador desbloqueado'
+    : `🧭 Próxima meta del MVP: ${exploration.visited}/${exploration.target} biomas · participa en otro`;
   $('vicStreakText').classList.toggle('hidden', !(state.tournamentMode && winObj.streak >= 1));
   $('vicStreakText').textContent = `🔥 ${winObj.streak} VICTORIA${winObj.streak > 1 ? 'S' : ''} EN EL TRONO`;
-  $('vicChallengerBanner').classList.toggle('hidden', !nextChallenger);
-  if (nextChallenger) $('vicChallengerBanner').textContent = `⚔️ NUEVO RETADOR: ${nextChallenger.flag} ${nextChallenger.name}`;
+  const cupRoundNames = ['RONDA DE 64', 'RONDA DE 32', 'OCTAVOS', 'CUARTOS', 'SEMIFINAL', 'FINAL'];
+  if (nextWorldCupMatch?.teamA && nextWorldCupMatch.teamB) {
+    const roundIndex = state.worldCup.rounds.findIndex((round) => round.includes(nextWorldCupMatch));
+    $('vicChallengerBanner').textContent =
+      `🏆 ${cupRoundNames[roundIndex]} · SIGUIENTE: ${nextWorldCupMatch.teamA.name} vs ${nextWorldCupMatch.teamB.name}`;
+    $('vicChallengerBanner').classList.remove('hidden');
+  } else if (worldCupCompleted && state.worldCup.champion) {
+    $('vicChallengerBanner').textContent = `🏆 CAMPEÓN DE LA COPA: ${state.worldCup.champion.name}`;
+    $('vicChallengerBanner').classList.remove('hidden');
+  } else {
+    $('vicChallengerBanner').classList.toggle('hidden', !nextChallenger);
+    if (nextChallenger) $('vicChallengerBanner').textContent = `⚔️ NUEVO RETADOR: ${nextChallenger.flag} ${nextChallenger.name}`;
+  }
+  settings.syncControlButtons();
 
   if (victoryOverlayTimer) clearTimeout(victoryOverlayTimer);
   victoryOverlayTimer = setTimeout(() => {
@@ -825,7 +1003,17 @@ function triggerVictory(winner: TeamId): void {
     $('vicCountdown').textContent = String(Math.max(0, sec));
     if (sec <= 0) {
       if (restartTimer) clearInterval(restartTimer);
-      if (nextChallenger) {
+      nextBiomeOverride = weekly.featuredBiomeId ? null : biomeVote.finish()?.id ?? null;
+      if (nextWorldCupMatch?.teamA && nextWorldCupMatch.teamB) {
+        state.teamA = makeBaseState(nextWorldCupMatch.teamA, true);
+        state.teamB = makeBaseState(nextWorldCupMatch.teamB, false);
+        state.viewerTeams.clear();
+        applyTeamUI();
+        savePersistentState();
+      } else if (worldCupCompleted) {
+        $('vicCountdown').textContent = '🏆';
+        return;
+      } else if (nextChallenger) {
         Object.assign(winner === 'A' ? state.teamB : state.teamA, nextChallenger, { wins: 0, streak: 0 });
         state.viewerTeams.clear();
         applyTeamUI();
@@ -843,10 +1031,14 @@ function resetRound(): void {
   impactLimiter.reset();
 
   const weekly = getWeeklyEventForDate();
+  const selectedBiome = nextBiomeOverride;
+  nextBiomeOverride = null;
+  biomeVote.reset();
   factionGoals.setTargetLikes(weekly.factionGoalLikes);
   factionGoals.resetRound();
 
   if (weekly.featuredBiomeId) setActiveBiome(weekly.featuredBiomeId);
+  else if (selectedBiome) setActiveBiome(selectedBiome);
   else cycleNextBiome();
   beginRound(getActiveBiome().id);
 
@@ -871,6 +1063,7 @@ function resetRound(): void {
   $('frenzyVignette').classList.remove('active');
   $('victoryOverlay').classList.remove('show');
   $('victoryOverlay').classList.add('hidden');
+  $('vicBiomeVote').classList.add('hidden');
   applyTeamUI();
   updateBaseHUD();
   updateFactionHUD();
@@ -894,6 +1087,24 @@ function resetSession(): void {
   resetRound();
 }
 
+function startNewTournament(): void {
+  prepareNewTournament();
+  nextBiomeOverride = null;
+  resetRound();
+  logWsEvent(`Nuevo torneo iniciado · ${state.teamA.name} vs ${state.teamB.name}`);
+  savePersistentState();
+}
+
+function startWorldCup(): void {
+  const openingMatch = prepareWorldCup();
+  nextBiomeOverride = null;
+  settings.renderRosterChips();
+  applyTeamUI();
+  resetRound();
+  logWsEvent(`Copa Mundial iniciada · ${openingMatch.teamA?.name} vs ${openingMatch.teamB?.name}`);
+  savePersistentState();
+}
+
 function applyTeamUI(): void {
   document.documentElement.style.setProperty('--team-a', state.teamA.color);
   document.documentElement.style.setProperty('--team-b', state.teamB.color);
@@ -907,10 +1118,14 @@ function applyTeamUI(): void {
   $('nameB').textContent = state.teamB.name; $('keyBadgeB').textContent = state.teamB.key;
   $('hpBarB').style.background = state.teamB.color; $('hpPctB').style.color = state.teamB.color;
 
-  $('streakBadgeA').classList.toggle('hidden', !(state.tournamentMode && state.teamA.streak >= 1));
-  $('streakBadgeA').textContent = `🔥 ${state.teamA.streak}`;
-  $('streakBadgeB').classList.toggle('hidden', !(state.tournamentMode && state.teamB.streak >= 1));
-  $('streakBadgeB').textContent = `🔥 ${state.teamB.streak}`;
+  const streakBadgeA = $('streakBadgeA');
+  streakBadgeA.classList.toggle('hidden', !(state.tournamentMode && state.teamA.streak >= 1));
+  streakBadgeA.setAttribute('aria-label', `Racha de victorias: ${state.teamA.streak}`);
+  $('streakCountA').textContent = String(state.teamA.streak);
+  const streakBadgeB = $('streakBadgeB');
+  streakBadgeB.classList.toggle('hidden', !(state.tournamentMode && state.teamB.streak >= 1));
+  streakBadgeB.setAttribute('aria-label', `Racha de victorias: ${state.teamB.streak}`);
+  $('streakCountB').textContent = String(state.teamB.streak);
 
   renderGiftLegend();
   renderTop3MVP();
@@ -956,6 +1171,8 @@ const settings = new SettingsPanel({
   activateSuddenDeath,
   resetRound,
   resetSession,
+  startNewTournament,
+  startWorldCup,
   simulateTap,
   externalObservability,
 });
@@ -997,6 +1214,7 @@ bus.on('tikfinity:status', ({ status, detail }) => {
 // Arranque
 window.addEventListener('pointerdown', () => synth.unlock(), { passive: true });
 loadPersistentState();
+if (state.worldCup.status === 'completed') state.roundActive = false;
 externalObservability.start();
 resetIfNeeded();
 const initialWeekly = getWeeklyEventForDate();
@@ -1029,6 +1247,8 @@ const arenaRuntime = new ArenaRuntime({
   elixir,
   simulation: sim,
   activateSuddenDeath,
+  activateTowerDecay,
+  applyTowerDecay,
   updateFrenzyGaugeUI,
   syncTimerPill,
 });
