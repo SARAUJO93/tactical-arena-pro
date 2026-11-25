@@ -37,6 +37,7 @@ export function sanitizeExternalEndpoint(raw: string): string | null {
       (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
     if (!isHttps && !isLocalHttp) return null;
     if (url.username || url.password) return null;
+    if (url.search || url.hash) return null;
     return url.toString();
   } catch {
     return null;

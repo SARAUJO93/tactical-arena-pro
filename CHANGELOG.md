@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.1.0 - 2026-11-24
+
+- Separated read-only build validation from release publication permissions.
+- Disabled persisted checkout credentials in CI, soak and release workflows.
+- Added automated exposed-secret scanning.
+- Added CodeQL JavaScript/TypeScript analysis.
+- Rejected external collector URLs with credentials, query strings or fragments.
+- Tightened CSP directives for objects, forms and framing.
+
 ## 3.0.0 - 2026-11-24
 
 - Added deterministic damage validation and resilience statistics.

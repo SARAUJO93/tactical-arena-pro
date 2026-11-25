@@ -6,16 +6,19 @@ on:
       - 'v*'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  validate:
     runs-on: ubuntu-latest
-    environment: production
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -26,10 +29,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Validate workflow syntax
-        uses: docker://rhysd/actionlint:1.7.12
-        with:
-          args: .github/workflows/release.yml
+      - name: Scan for exposed secrets
+        run: npm run check:secrets
 
       - name: Audit production dependencies
         run: npm audit --omit=dev
@@ -53,6 +54,27 @@ jobs:
             README.md TIKFINITY.md CHANGELOG.md LICENSE.md manifest.json
           sha256sum tactical-arena-${GITHUB_REF_NAME}.html \
             tactical-arena-${GITHUB_REF_NAME}.tar.gz > SHA256SUMS.txt
+
+      - name: Upload release package
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-package
+          path: |
+            release/
+
+  publish:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download release package
+        uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: release
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2

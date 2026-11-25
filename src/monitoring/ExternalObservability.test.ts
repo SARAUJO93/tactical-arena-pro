@@ -14,6 +14,8 @@ describe('ExternalObservability', () => {
   it('rechaza HTTP remoto y credenciales en URL', () => {
     expect(sanitizeExternalEndpoint('http://collector.example.com/events')).toBeNull();
     expect(sanitizeExternalEndpoint('https://user:pass@collector.example.com/events')).toBeNull();
+    expect(sanitizeExternalEndpoint('https://collector.example.com/events?token=secret')).toBeNull();
+    expect(sanitizeExternalEndpoint('https://collector.example.com/events#fragment')).toBeNull();
   });
 
   it('rechaza URLs invalidas', () => {
@@ -22,8 +24,8 @@ describe('ExternalObservability', () => {
   });
 
   it('incluye solo métricas agregadas y rendimiento', () => {
-    const payload = buildSanitizedPayload('3.0.0');
-    expect(payload.appVersion).toBe('3.0.0');
+    const payload = buildSanitizedPayload('3.1.0');
+    expect(payload.appVersion).toBe('3.1.0');
     expect(payload).toHaveProperty('quality.roundCount');
     expect(payload).toHaveProperty('performance.fps');
     expect(payload).not.toHaveProperty('user');
