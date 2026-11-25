@@ -80,11 +80,29 @@ export class ExternalObservability {
   private lastAttemptAt: number | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private retryDelayMs = 15000;
+  private lastSuccessAt: number | null = null;
+  private lastLatencyMs: number | null = null;
+  private successCount = 0;
+  private failureCount = 0;
 
   constructor(private readonly appVersion: string) {}
 
-  getStatus(): { status: 'off' | 'idle' | 'sent' | 'failed'; lastAttemptAt: number | null } {
-    return { status: this.status, lastAttemptAt: this.lastAttemptAt };
+  getStatus(): {
+    status: 'off' | 'idle' | 'sent' | 'failed';
+    lastAttemptAt: number | null;
+    lastSuccessAt: number | null;
+    lastLatencyMs: number | null;
+    successCount: number;
+    failureCount: number;
+  } {
+    return {
+      status: this.status,
+      lastAttemptAt: this.lastAttemptAt,
+      lastSuccessAt: this.lastSuccessAt,
+      lastLatencyMs: this.lastLatencyMs,
+      successCount: this.successCount,
+      failureCount: this.failureCount,
+    };
   }
 
   start(): void {
@@ -93,6 +111,7 @@ export class ExternalObservability {
     const endpoint = sanitizeExternalEndpoint(state.externalObservabilityEndpoint);
     if (!endpoint) return;
     this.status = 'idle';
+    void this.send(endpoint);
     this.timer = setInterval(() => void this.send(endpoint), 60000);
   }
 
@@ -103,6 +122,10 @@ export class ExternalObservability {
     this.retryTimer = null;
     this.status = 'off';
     this.retryDelayMs = 15000;
+    this.lastSuccessAt = null;
+    this.lastLatencyMs = null;
+    this.successCount = 0;
+    this.failureCount = 0;
   }
 
   private scheduleRetry(endpoint: string): void {
@@ -122,6 +145,7 @@ export class ExternalObservability {
     const payload = buildSanitizedPayload(this.appVersion);
     payload.sessionId = this.sessionId;
     this.lastAttemptAt = Date.now();
+    const attemptStartedAt = performance.now();
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -132,6 +156,9 @@ export class ExternalObservability {
       });
       if (response.ok) {
         this.status = 'sent';
+        this.lastSuccessAt = Date.now();
+        this.lastLatencyMs = Math.round(performance.now() - attemptStartedAt);
+        this.successCount += 1;
         this.retryDelayMs = 15000;
         if (this.retryTimer) {
           clearTimeout(this.retryTimer);
@@ -139,11 +166,15 @@ export class ExternalObservability {
         }
       } else {
         this.status = 'failed';
+        this.lastLatencyMs = Math.round(performance.now() - attemptStartedAt);
+        this.failureCount += 1;
         this.scheduleRetry(endpoint);
       }
       return response.ok;
     } catch {
       this.status = 'failed';
+      this.lastLatencyMs = Math.round(performance.now() - attemptStartedAt);
+      this.failureCount += 1;
       this.scheduleRetry(endpoint);
       return false;
     }

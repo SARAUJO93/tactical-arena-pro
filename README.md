@@ -85,3 +85,16 @@ ni mensajes completos.
 - Ajustes permite restaurar el respaldo más reciente o una copia marcada como corrupta.
 - Los logs locales usan eventos estructurados y redactan URLs, usuarios y datos numéricos largos.
 - Los envíos externos usan reintentos exponenciales limitados.
+
+## Fase 7A — Piloto controlado
+
+Ejecuta un collector local para probar observabilidad antes de usar un servicio externo:
+
+```powershell
+npm run pilot:collector
+```
+
+El collector escucha `http://127.0.0.1:8080/events` y guarda eventos agregados en
+`pilot-output/quality-events.ndjson`.
+
+Consulta [PILOT_CHECKLIST.md](PILOT_CHECKLIST.md) antes y después de una transmisión real.

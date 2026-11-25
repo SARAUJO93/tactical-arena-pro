@@ -1,7 +1,7 @@
 {
   "name": "tactical-arena-pro",
   "private": true,
-  "version": "2.8.0",
+  "version": "2.9.0",
   "type": "module",
   "engines": {
     "node": ">=20.19.0"
@@ -16,7 +16,8 @@
     "test:soak": "playwright test tests/e2e/app.soak.spec.ts",
     "check:release": "node scripts/check-release.mjs",
     "release:notes": "node scripts/generate-release-notes.mjs",
-    "package:release": "node scripts/package-release.mjs"
+    "package:release": "node scripts/package-release.mjs",
+    "pilot:collector": "node scripts/collector.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

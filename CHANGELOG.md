@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.9.0 - 2026-11-24
+
+- Added immediate external delivery when pilot observability starts.
+- Added latency, success/failure counts and last-success metrics.
+- Added a local sanitized quality-event collector.
+- Added a controlled-pilot checklist for live operation.
+- Improved external delivery status in Settings and Telemetry.
+
+## 2.9.0 - 2026-11-24
+
+- Added immediate pilot delivery when external observability starts.
+- Added delivery latency, success/failure counts and last-success metrics.
+- Added a local sanitized quality-event collector.
+- Added a 7A pilot checklist for pre-live, live and post-live review.
+- Improved external status with delivery totals and latency.
+
 ## 2.8.0 - 2026-11-24
 
 - Added offline service-worker shell caching.

@@ -22,11 +22,24 @@ describe('ExternalObservability', () => {
   });
 
   it('incluye solo métricas agregadas y rendimiento', () => {
-    const payload = buildSanitizedPayload('2.8.0');
-    expect(payload.appVersion).toBe('2.8.0');
+    const payload = buildSanitizedPayload('2.9.0');
+    expect(payload.appVersion).toBe('2.9.0');
     expect(payload).toHaveProperty('quality.roundCount');
     expect(payload).toHaveProperty('performance.fps');
     expect(payload).not.toHaveProperty('user');
     expect(payload).not.toHaveProperty('chat');
+  });
+
+  it('expone estado operacional inicial limpio', async () => {
+    const observability = await import('./ExternalObservability');
+    const instance = new observability.ExternalObservability('2.9.0');
+    expect(instance.getStatus()).toMatchObject({
+      status: 'off',
+      lastAttemptAt: null,
+      lastSuccessAt: null,
+      lastLatencyMs: null,
+      successCount: 0,
+      failureCount: 0,
+    });
   });
 });
