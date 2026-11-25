@@ -1,4 +1,5 @@
 import { state } from '../core/GameState';
+import { logOperationalEvent, redactSensitiveText } from './OperationalLogger';
 
 export interface ErrorRecord {
   ts: number;
@@ -7,12 +8,13 @@ export interface ErrorRecord {
 }
 
 function recordError(source: ErrorRecord['source'], message: string): void {
-  const clean = message.trim().slice(0, 300) || 'Error desconocido';
+  const clean = redactSensitiveText(message) || 'Error desconocido';
   state.telemetry.runtimeErrorCount += 1;
   state.telemetry.errorLog.unshift(
     `[${new Date().toLocaleTimeString('es-MX', { hour12: false })}] ${source}: ${clean}`
   );
   state.telemetry.errorLog = state.telemetry.errorLog.slice(0, 40);
+  logOperationalEvent('error', `runtime.${source}`, clean);
 }
 
 export function installErrorMonitoring(): () => void {

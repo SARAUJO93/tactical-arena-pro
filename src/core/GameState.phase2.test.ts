@@ -9,6 +9,8 @@ import {
   STORAGE_KEY,
   exportPersistentState,
   importPersistentState,
+  listPersistenceSnapshots,
+  restorePersistenceSnapshot,
   recordGift,
   resetSession,
   saveNow,
@@ -221,5 +223,20 @@ describe('Fase 2 - ciclo de round', () => {
     expect(state.personalTapThreshold).toBe(30);
     expect([...Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i))]
       .some((key) => key?.startsWith(`${STORAGE_KEY}_backup_`))).toBe(true);
+  });
+
+  it('lista y restaura snapshots de respaldo', () => {
+    state.personalTapThreshold = 35;
+    saveNow();
+    localStorage.setItem(`${STORAGE_KEY}_backup_test`, localStorage.getItem(STORAGE_KEY) || '{}');
+
+    const snapshots = listPersistenceSnapshots();
+    expect(snapshots.some((snapshot) => snapshot.kind === 'backup')).toBe(true);
+
+    state.personalTapThreshold = 15;
+    const snapshot = snapshots.find((item) => item.kind === 'backup');
+    expect(snapshot).toBeDefined();
+    expect(restorePersistenceSnapshot(snapshot!.key)).toBe(true);
+    expect(state.personalTapThreshold).toBe(35);
   });
 });

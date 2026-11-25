@@ -2,7 +2,7 @@ import './style.css';
 import { bus, TeamId } from './core/EventBus';
 import {
   loadPersistentState, makeSideDefenseState, MAX_BASE_HP,
-  saveNow, savePersistentState, state, TeamPreset,
+  savePersistentState, state, TeamPreset,
   // Fase A
   beginRound, finalizeRound, resetIfNeeded, resetSession as resetSessionState,
   scoreMvp, ensurePlayerRecord,
@@ -24,13 +24,15 @@ import { consumeTapRewards } from './utils/tapRewards';
 import { ArenaRuntime } from './app/ArenaRuntime';
 import { installErrorMonitoring } from './monitoring/ErrorMonitor';
 import { ExternalObservability } from './monitoring/ExternalObservability';
+import { installBrowserLifecycle } from './app/BrowserLifecycle';
+import { registerOfflineCache } from './app/OfflineCache';
 
 const $ = (id: string) => document.getElementById(id)!;
 const notificationDock = new NotificationDock($);
 const synth = new SynthEngine();
 const elixir = new ElixirSystem();
 const tikfinity = new TikFinityClient();
-const externalObservability = new ExternalObservability('2.7.0');
+const externalObservability = new ExternalObservability('2.8.0');
 
 const sim = new Simulation(
   $('arenaCanvas') as HTMLCanvasElement,
@@ -724,7 +726,6 @@ bus.on('tikfinity:status', ({ status, detail }) => {
 
 // Arranque
 window.addEventListener('pointerdown', () => synth.unlock(), { passive: true });
-window.addEventListener('beforeunload', saveNow);
 loadPersistentState();
 externalObservability.start();
 resetIfNeeded();
@@ -737,8 +738,19 @@ elixir.resetRound();
 synth.init();
 synth.applyMusicMode();
 announceActiveBiome();
-logWsEvent('Tactical Arena V2.7.0 listo · Fase A activa (Liga / Records).');
+logWsEvent('Tactical Arena V2.8.0 listo · Fase A activa (Liga / Records).');
+void registerOfflineCache();
 installErrorMonitoring();
+installBrowserLifecycle({
+  onOffline: () => {
+    $('wsTopText').textContent = 'Sin conexión';
+    pushNotificationDock('Sin conexión', 'El juego continúa en modo local', '#F59E0B', '', '', '📡', 'OFFLINE', 3000);
+  },
+  onOnline: () => {
+    $('wsTopText').textContent = tikfinity.isEnabled ? 'Reconectando' : 'Online';
+    pushNotificationDock('Conexión restaurada', 'La aplicación volvió a estar online', '#34D399', '', '', '🌐', 'ONLINE', 2400);
+  },
+});
 const arenaRuntime = new ArenaRuntime({
   elixir,
   simulation: sim,

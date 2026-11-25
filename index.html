@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>TACTICAL ARENA V2.7.0 — Elixir, Biomas &amp; Audio Épico</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob: http: https:; media-src 'self' blob: data:; font-src 'self' data:; connect-src 'self' ws: wss: http: https:;" />
+  <title>TACTICAL ARENA V2.8.0 — Elixir, Biomas &amp; Audio Épico</title>
 </head>
 <body>
 
@@ -225,7 +226,7 @@
       <div id="controlPanel" class="modal-overlay hidden">
         <div class="modal-header">
           <div>
-            <div style="font-size:13px;font-weight:900;letter-spacing:0.05em;">TACTICAL ARENA V2.7.0</div>
+            <div style="font-size:13px;font-weight:900;letter-spacing:0.05em;">TACTICAL ARENA V2.8.0</div>
             <div style="font-size:9px;color:#94A3B8;margin-top:2px;">Elixir, Biomas &amp; Audio Épico · H: Ajustes · I: Telemetría · L: Liga · S: Safe · T/Y: Tap</div>
           </div>
           <button id="btnClosePanel" class="btn">Cerrar ✕</button>
@@ -242,6 +243,8 @@
           <button id="btnResetSession" class="btn btn-danger">🗑️ Reset Sesión</button>
           <button id="btnExportState" class="btn btn-primary">⬇ Exportar Estado</button>
           <button id="btnImportState" class="btn btn-amber">⬆ Importar Estado</button>
+          <button id="btnRestoreBackup" class="btn">↩ Restaurar respaldo</button>
+          <button id="btnRestoreCorrupt" class="btn btn-danger">↩ Recuperar dato corrupto</button>
           <input id="inImportState" type="file" accept=".json,application/json" hidden />
         </div>
 
@@ -390,7 +393,7 @@
       <div id="telemetryModal" class="modal-overlay hidden">
         <div class="modal-header">
           <div>
-            <div style="font-size:13px;font-weight:900;letter-spacing:0.05em;">📊 TELEMETRÍA V2.7.0</div>
+            <div style="font-size:13px;font-weight:900;letter-spacing:0.05em;">📊 TELEMETRÍA V2.8.0</div>
             <div style="font-size:9px;color:#94A3B8;margin-top:2px;">Monetización, algoritmo y estabilidad WebSocket (solo eventos reales)</div>
           </div>
           <button id="btnCloseTelemetry" class="btn">Cerrar ✕</button>

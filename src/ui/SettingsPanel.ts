@@ -3,6 +3,7 @@ import {
   LIGAMX_ROSTER, makeBaseState, savePersistentState, state, TeamPreset, WORLD_ROSTER,
   getStandings, getTopPlayers, getTopGifters, getRecentRounds,
   exportPersistentState, importPersistentState,
+  listPersistenceSnapshots, restorePersistenceSnapshot,
 } from '../core/GameState';
 import { SynthEngine } from '../audio/SynthEngine';
 import { TikFinityClient } from '../network/TikFinityClient';
@@ -146,6 +147,15 @@ export class SettingsPanel {
       failed: 'Falló',
     }[externalStatus.status];
     $('telExternalStatus').textContent = `Estado externo: ${statusLabel}`;
+    const snapshots = listPersistenceSnapshots();
+    const backups = snapshots.filter((snapshot) => snapshot.kind === 'backup');
+    const corrupt = snapshots.filter((snapshot) => snapshot.kind === 'corrupt');
+    ($('btnRestoreBackup') as HTMLButtonElement).disabled = backups.length === 0;
+    ($('btnRestoreBackup') as HTMLButtonElement).textContent =
+      backups.length ? `↩ Restaurar respaldo (${backups.length})` : '↩ Sin respaldos';
+    ($('btnRestoreCorrupt') as HTMLButtonElement).disabled = corrupt.length === 0;
+    ($('btnRestoreCorrupt') as HTMLButtonElement).textContent =
+      corrupt.length ? `↩ Recuperar corrupto (${corrupt.length})` : '↩ Sin datos corruptos';
 
     ($('selMusicMode') as HTMLSelectElement).value = state.musicMode;
     const volPct = Math.round(state.musicVolume * 100);
@@ -554,7 +564,7 @@ export class SettingsPanel {
     $('btnExportState').addEventListener('click', () => {
       const raw = exportPersistentState();
       if (!raw) return;
-      downloadFile(`tactical_arena_state_v2_7_0_${Date.now()}.json`, raw, 'application/json');
+      downloadFile(`tactical_arena_state_v2_8_0_${Date.now()}.json`, raw, 'application/json');
     });
     $('btnImportState').addEventListener('click', () => {
       ($('inImportState') as HTMLInputElement).click();
@@ -572,6 +582,26 @@ export class SettingsPanel {
         window.location.reload();
       };
       reader.readAsText(file);
+    });
+    $('btnRestoreBackup').addEventListener('click', () => {
+      const snapshot = listPersistenceSnapshots().find((item) => item.kind === 'backup');
+      if (!snapshot) return;
+      if (!window.confirm('¿Restaurar el respaldo persistido más reciente?')) return;
+      if (!restorePersistenceSnapshot(snapshot.key)) {
+        window.alert('No se pudo restaurar el respaldo.');
+        return;
+      }
+      window.location.reload();
+    });
+    $('btnRestoreCorrupt').addEventListener('click', () => {
+      const snapshot = listPersistenceSnapshots().find((item) => item.kind === 'corrupt');
+      if (!snapshot) return;
+      if (!window.confirm('¿Intentar recuperar el último estado marcado como corrupto?')) return;
+      if (!restorePersistenceSnapshot(snapshot.key)) {
+        window.alert('No se pudo recuperar el estado corrupto.');
+        return;
+      }
+      window.location.reload();
     });
 
     // Música
@@ -694,7 +724,7 @@ export class SettingsPanel {
           recentRounds: state.roundLogs.slice(0, 50),
         },
       };
-      downloadFile(`tactical_v2_7_0_telemetry_${Date.now()}.json`, JSON.stringify(payload, null, 2), 'application/json');
+      downloadFile(`tactical_v2_8_0_telemetry_${Date.now()}.json`, JSON.stringify(payload, null, 2), 'application/json');
     });
     $('btnExportCsv').addEventListener('click', () => {
       const rows: [string, string | number][] = [
@@ -708,7 +738,7 @@ export class SettingsPanel {
       Object.entries(state.telemetry.giftBreakdown).forEach(([n, inf]) => {
         rows.push([n, `${inf.count} (${inf.coins} coins)`]);
       });
-      downloadFile(`tactical_v2_7_0_telemetry_${Date.now()}.csv`, rows.map((r) => r.join(',')).join('\n'), 'text/csv;charset=utf-8;');
+      downloadFile(`tactical_v2_8_0_telemetry_${Date.now()}.csv`, rows.map((r) => r.join(',')).join('\n'), 'text/csv;charset=utf-8;');
     });
   }
 }

@@ -2,7 +2,7 @@ import { TeamId } from './EventBus';
 import { LruMap } from '../utils/helpers';
 
 export const STORAGE_KEY = 'tactical_arena_v2_3_league';
-export const PERSISTENCE_SCHEMA_VERSION = 2;
+export const PERSISTENCE_SCHEMA_VERSION = 3;
 export const MAX_BASE_HP = 3000;
 export const MAX_SIDE_DEFENSE_HP = 1350;
 export const METEOR_COIN_STEP = 500;
@@ -83,6 +83,7 @@ export interface TelemetryData {
   errorLog: string[];
   giftBreakdown: Record<string, { count: number; coins: number }>;
   wsLog: string[];
+  structuredLog: Array<{ ts: number; level: 'info' | 'warn' | 'error'; event: string; detail: string }>;
 }
 
 /* =====================================================================
@@ -363,6 +364,7 @@ export const state = {
     errorLog: [],
     giftBreakdown: {},
     wsLog: [],
+    structuredLog: [],
   } as TelemetryData,
 };
 
@@ -743,6 +745,7 @@ export function resetSession(): void {
     errorLog: [],
     giftBreakdown: {},
     wsLog: [],
+    structuredLog: [],
   };
 
   state.sessionId = Date.now();
@@ -972,6 +975,52 @@ export function importPersistentState(raw: string): boolean {
   } catch {
     return false;
   }
+}
+
+export interface PersistenceSnapshot {
+  key: string;
+  kind: 'backup' | 'corrupt';
+  ts: number;
+}
+
+export function listPersistenceSnapshots(): PersistenceSnapshot[] {
+  const snapshots: PersistenceSnapshot[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+    if (key.startsWith(`${STORAGE_KEY}_backup_`)) {
+      snapshots.push({
+        key,
+        kind: 'backup',
+        ts: Number(key.slice(`${STORAGE_KEY}_backup_`.length)) || 0,
+      });
+    } else if (key.startsWith(`${STORAGE_KEY}_corrupt_`)) {
+      snapshots.push({
+        key,
+        kind: 'corrupt',
+        ts: Number(key.slice(`${STORAGE_KEY}_corrupt_`.length)) || 0,
+      });
+    }
+  }
+  return snapshots.sort((a, b) => b.ts - a.ts);
+}
+
+export function restorePersistenceSnapshot(key: string): boolean {
+  const snapshots = listPersistenceSnapshots();
+  if (!snapshots.some((snapshot) => snapshot.key === key)) return false;
+  const snapshotRaw = localStorage.getItem(key);
+  if (!snapshotRaw) return false;
+
+  try {
+    localStorage.setItem(
+      `${STORAGE_KEY}_before_restore_${Date.now()}`,
+      localStorage.getItem(STORAGE_KEY) || '{}'
+    );
+  } catch { /* noop */ }
+
+  localStorage.setItem(STORAGE_KEY, snapshotRaw);
+  loadPersistentState();
+  return true;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -1296,6 +1345,22 @@ export function loadPersistentState(): void {
         state.telemetry.errorLog = telemetry.errorLog
           .filter((entry): entry is string => typeof entry === 'string')
           .slice(0, 40);
+      }
+      if (Array.isArray(telemetry.structuredLog)) {
+        state.telemetry.structuredLog = telemetry.structuredLog
+          .filter((entry): entry is { ts: number; level: 'info' | 'warn' | 'error'; event: string; detail: string } =>
+            isObject(entry) &&
+            finiteNumber(entry.ts) &&
+            (entry.level === 'info' || entry.level === 'warn' || entry.level === 'error') &&
+            typeof entry.event === 'string' &&
+            typeof entry.detail === 'string')
+          .slice(0, 40)
+          .map((entry) => ({
+            ts: entry.ts,
+            level: entry.level,
+            event: entry.event.slice(0, 64),
+            detail: entry.detail.slice(0, 300),
+          }));
       }
       if (finiteNumber(telemetry.elapsedMs)) state.telemetry.sessionStart = Date.now() - Math.max(0, telemetry.elapsedMs);
     }

@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('carga el arena y muestra los controles principales', async ({ page }) => {
-  await expect(page).toHaveTitle(/TACTICAL ARENA V2\.7\.0/i);
+  await expect(page).toHaveTitle(/TACTICAL ARENA V2\.8\.0/i);
   await expect(page.locator('#arenaCanvas')).toBeVisible();
   await expect(page.locator('#stageFrame')).toBeVisible();
   await expect(page.locator('#timerText')).toHaveText(/^\d{2}:\d{2}$/);

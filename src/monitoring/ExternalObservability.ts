@@ -13,6 +13,7 @@ export interface SanitizedQualityPayload {
     websocketDisconnectCount: number;
   };
   errorKinds: string[];
+  structuredEvents: string[];
   performance: {
     fps: number;
     averageFrameMs: number;
@@ -59,6 +60,10 @@ export function buildSanitizedPayload(appVersion: string): SanitizedQualityPaylo
       .map((entry) => entry.includes('Persistencia') ? 'persistence' : 'runtime')
       .filter((value, index, values) => values.indexOf(value) === index)
       .slice(0, 10),
+    structuredEvents: state.telemetry.structuredLog
+      .map((entry) => entry.event)
+      .filter((value, index, values) => values.indexOf(value) === index)
+      .slice(0, 10),
     performance: {
       fps: state.telemetry.fps,
       averageFrameMs: state.telemetry.averageFrameMs,
@@ -73,6 +78,8 @@ export class ExternalObservability {
   private readonly sessionId = createSessionId();
   private status: 'off' | 'idle' | 'sent' | 'failed' = 'off';
   private lastAttemptAt: number | null = null;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private retryDelayMs = 15000;
 
   constructor(private readonly appVersion: string) {}
 
@@ -91,8 +98,21 @@ export class ExternalObservability {
 
   stop(): void {
     if (this.timer) clearInterval(this.timer);
+    if (this.retryTimer) clearTimeout(this.retryTimer);
     this.timer = null;
+    this.retryTimer = null;
     this.status = 'off';
+    this.retryDelayMs = 15000;
+  }
+
+  private scheduleRetry(endpoint: string): void {
+    if (this.retryTimer) return;
+    const delay = this.retryDelayMs;
+    this.retryDelayMs = Math.min(300000, delay * 2);
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      void this.send(endpoint);
+    }, delay);
   }
 
   async send(endpointOverride?: string): Promise<boolean> {
@@ -110,10 +130,21 @@ export class ExternalObservability {
         keepalive: true,
         body: JSON.stringify(payload),
       });
-      this.status = response.ok ? 'sent' : 'failed';
+      if (response.ok) {
+        this.status = 'sent';
+        this.retryDelayMs = 15000;
+        if (this.retryTimer) {
+          clearTimeout(this.retryTimer);
+          this.retryTimer = null;
+        }
+      } else {
+        this.status = 'failed';
+        this.scheduleRetry(endpoint);
+      }
       return response.ok;
     } catch {
       this.status = 'failed';
+      this.scheduleRetry(endpoint);
       return false;
     }
   }

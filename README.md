@@ -78,3 +78,10 @@ ni mensajes completos.
 - El workflow `Soak — Tactical Arena` permite una ejecución manual de hasta 30 minutos.
 - La telemetría muestra FPS, frame medio, frame máximo y heap usado cuando el navegador lo expone.
 - El estado externo distingue apagado, esperando, enviado y fallido.
+
+## Madurez operativa P2
+
+- El Service Worker conserva el shell de la aplicación para recargas HTTP/HTTPS sin conexión.
+- Ajustes permite restaurar el respaldo más reciente o una copia marcada como corrupta.
+- Los logs locales usan eventos estructurados y redactan URLs, usuarios y datos numéricos largos.
+- Los envíos externos usan reintentos exponenciales limitados.

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.8.0 - 2026-11-24
+
+- Added offline service-worker shell caching.
+- Added visible backup and corrupt-state restoration.
+- Added structured and redacted operational event logging.
+- Added bounded external delivery retries with backoff.
+- Tightened browser lifecycle and persistence recovery.
+
 ## 2.7.0 - 2026-11-24
 
 - Added FPS, frame-time and JavaScript heap telemetry.
