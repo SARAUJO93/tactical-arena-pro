@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>TACTICAL ARENA V2.6.0 — Elixir, Biomas &amp; Audio Épico</title>
+  <title>TACTICAL ARENA V2.7.0 — Elixir, Biomas &amp; Audio Épico</title>
 </head>
 <body>
 
@@ -225,7 +225,7 @@
       <div id="controlPanel" class="modal-overlay hidden">
         <div class="modal-header">
           <div>
-            <div style="font-size:13px;font-weight:900;letter-spacing:0.05em;">TACTICAL ARENA V2.6.0</div>
+            <div style="font-size:13px;font-weight:900;letter-spacing:0.05em;">TACTICAL ARENA V2.7.0</div>
             <div style="font-size:9px;color:#94A3B8;margin-top:2px;">Elixir, Biomas &amp; Audio Épico · H: Ajustes · I: Telemetría · L: Liga · S: Safe · T/Y: Tap</div>
           </div>
           <button id="btnClosePanel" class="btn">Cerrar ✕</button>
@@ -250,6 +250,7 @@
             <span style="color:#67E8F9;">Observabilidad externa opcional</span>
             <button id="btnExternalTelemetry" class="btn">📡 Externa: OFF</button>
           </div>
+          <div id="telExternalStatus" style="margin:5px 0;font-size:9px;color:#94A3B8;">Estado externo: OFF</div>
           <input id="inExternalTelemetryUrl" class="inp" type="url"
             placeholder="https://collector.example.com/tactical-arena"
             style="width:100%;font-family:monospace;" />
@@ -389,7 +390,7 @@
       <div id="telemetryModal" class="modal-overlay hidden">
         <div class="modal-header">
           <div>
-            <div style="font-size:13px;font-weight:900;letter-spacing:0.05em;">📊 TELEMETRÍA V2.6.0</div>
+            <div style="font-size:13px;font-weight:900;letter-spacing:0.05em;">📊 TELEMETRÍA V2.7.0</div>
             <div style="font-size:9px;color:#94A3B8;margin-top:2px;">Monetización, algoritmo y estabilidad WebSocket (solo eventos reales)</div>
           </div>
           <button id="btnCloseTelemetry" class="btn">Cerrar ✕</button>
@@ -410,6 +411,10 @@
           <div class="kpi-box"><div class="kpi-label">Ronda más larga</div><div id="telLongestRound" class="kpi-val tabular">00:00:00</div></div>
           <div class="kpi-box"><div class="kpi-label">Errores runtime</div><div id="telRuntimeErrors" class="kpi-val tabular">0</div></div>
           <div class="kpi-box"><div class="kpi-label">Errores persistencia</div><div id="telPersistenceErrors" class="kpi-val tabular">0</div></div>
+          <div class="kpi-box"><div class="kpi-label">FPS</div><div id="telFps" class="kpi-val tabular">0</div></div>
+          <div class="kpi-box"><div class="kpi-label">Frame medio</div><div id="telAvgFrame" class="kpi-val tabular">0 ms</div></div>
+          <div class="kpi-box"><div class="kpi-label">Frame máximo</div><div id="telMaxFrame" class="kpi-val tabular">0 ms</div></div>
+          <div class="kpi-box"><div class="kpi-label">JS heap</div><div id="telHeap" class="kpi-val tabular">N/D</div></div>
         </div>
 
         <div class="section-card">

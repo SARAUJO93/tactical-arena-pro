@@ -13,6 +13,12 @@ export interface SanitizedQualityPayload {
     websocketDisconnectCount: number;
   };
   errorKinds: string[];
+  performance: {
+    fps: number;
+    averageFrameMs: number;
+    maxFrameMs: number;
+    usedHeapMb: number | null;
+  };
 }
 
 function createSessionId(): string {
@@ -53,26 +59,40 @@ export function buildSanitizedPayload(appVersion: string): SanitizedQualityPaylo
       .map((entry) => entry.includes('Persistencia') ? 'persistence' : 'runtime')
       .filter((value, index, values) => values.indexOf(value) === index)
       .slice(0, 10),
+    performance: {
+      fps: state.telemetry.fps,
+      averageFrameMs: state.telemetry.averageFrameMs,
+      maxFrameMs: state.telemetry.maxFrameMs,
+      usedHeapMb: state.telemetry.usedHeapMb,
+    },
   };
 }
 
 export class ExternalObservability {
   private timer: ReturnType<typeof setInterval> | null = null;
   private readonly sessionId = createSessionId();
+  private status: 'off' | 'idle' | 'sent' | 'failed' = 'off';
+  private lastAttemptAt: number | null = null;
 
   constructor(private readonly appVersion: string) {}
+
+  getStatus(): { status: 'off' | 'idle' | 'sent' | 'failed'; lastAttemptAt: number | null } {
+    return { status: this.status, lastAttemptAt: this.lastAttemptAt };
+  }
 
   start(): void {
     if (this.timer) return;
     if (!state.externalObservabilityEnabled) return;
     const endpoint = sanitizeExternalEndpoint(state.externalObservabilityEndpoint);
     if (!endpoint) return;
+    this.status = 'idle';
     this.timer = setInterval(() => void this.send(endpoint), 60000);
   }
 
   stop(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    this.status = 'off';
   }
 
   async send(endpointOverride?: string): Promise<boolean> {
@@ -81,6 +101,7 @@ export class ExternalObservability {
 
     const payload = buildSanitizedPayload(this.appVersion);
     payload.sessionId = this.sessionId;
+    this.lastAttemptAt = Date.now();
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -89,8 +110,10 @@ export class ExternalObservability {
         keepalive: true,
         body: JSON.stringify(payload),
       });
+      this.status = response.ok ? 'sent' : 'failed';
       return response.ok;
     } catch {
+      this.status = 'failed';
       return false;
     }
   }

@@ -64,6 +64,12 @@ export function renderTelemetry(): void {
   $('telLongestRound').textContent = formatDuration(state.telemetry.longestRoundSec * 1000);
   $('telRuntimeErrors').textContent = String(state.telemetry.runtimeErrorCount);
   $('telPersistenceErrors').textContent = String(state.telemetry.persistenceErrorCount);
+  $('telFps').textContent = String(state.telemetry.fps);
+  $('telAvgFrame').textContent = `${state.telemetry.averageFrameMs.toFixed(1)} ms`;
+  $('telMaxFrame').textContent = `${state.telemetry.maxFrameMs.toFixed(1)} ms`;
+  $('telHeap').textContent = state.telemetry.usedHeapMb === null
+    ? 'N/D'
+    : `${state.telemetry.usedHeapMb.toFixed(1)} MB`;
 
   const top = Object.entries(state.telemetry.giftBreakdown)
     .sort((a, b) => b[1].coins - a[1].coins)

@@ -138,6 +138,14 @@ export class SettingsPanel {
       ? 'btn btn-emerald'
       : 'btn';
     ($('inExternalTelemetryUrl') as HTMLInputElement).value = state.externalObservabilityEndpoint;
+    const externalStatus = this.deps.externalObservability.getStatus();
+    const statusLabel = {
+      off: 'OFF',
+      idle: 'Esperando',
+      sent: 'Enviado',
+      failed: 'Falló',
+    }[externalStatus.status];
+    $('telExternalStatus').textContent = `Estado externo: ${statusLabel}`;
 
     ($('selMusicMode') as HTMLSelectElement).value = state.musicMode;
     const volPct = Math.round(state.musicVolume * 100);
@@ -546,7 +554,7 @@ export class SettingsPanel {
     $('btnExportState').addEventListener('click', () => {
       const raw = exportPersistentState();
       if (!raw) return;
-      downloadFile(`tactical_arena_state_v2_6_0_${Date.now()}.json`, raw, 'application/json');
+      downloadFile(`tactical_arena_state_v2_7_0_${Date.now()}.json`, raw, 'application/json');
     });
     $('btnImportState').addEventListener('click', () => {
       ($('inImportState') as HTMLInputElement).click();
@@ -686,7 +694,7 @@ export class SettingsPanel {
           recentRounds: state.roundLogs.slice(0, 50),
         },
       };
-      downloadFile(`tactical_v2_6_0_telemetry_${Date.now()}.json`, JSON.stringify(payload, null, 2), 'application/json');
+      downloadFile(`tactical_v2_7_0_telemetry_${Date.now()}.json`, JSON.stringify(payload, null, 2), 'application/json');
     });
     $('btnExportCsv').addEventListener('click', () => {
       const rows: [string, string | number][] = [
@@ -700,7 +708,7 @@ export class SettingsPanel {
       Object.entries(state.telemetry.giftBreakdown).forEach(([n, inf]) => {
         rows.push([n, `${inf.count} (${inf.coins} coins)`]);
       });
-      downloadFile(`tactical_v2_6_0_telemetry_${Date.now()}.csv`, rows.map((r) => r.join(',')).join('\n'), 'text/csv;charset=utf-8;');
+      downloadFile(`tactical_v2_7_0_telemetry_${Date.now()}.csv`, rows.map((r) => r.join(',')).join('\n'), 'text/csv;charset=utf-8;');
     });
   }
 }

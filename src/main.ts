@@ -30,7 +30,7 @@ const notificationDock = new NotificationDock($);
 const synth = new SynthEngine();
 const elixir = new ElixirSystem();
 const tikfinity = new TikFinityClient();
-const externalObservability = new ExternalObservability('2.6.0');
+const externalObservability = new ExternalObservability('2.7.0');
 
 const sim = new Simulation(
   $('arenaCanvas') as HTMLCanvasElement,
@@ -737,7 +737,7 @@ elixir.resetRound();
 synth.init();
 synth.applyMusicMode();
 announceActiveBiome();
-logWsEvent('Tactical Arena V2.6.0 listo · Fase A activa (Liga / Records).');
+logWsEvent('Tactical Arena V2.7.0 listo · Fase A activa (Liga / Records).');
 installErrorMonitoring();
 const arenaRuntime = new ArenaRuntime({
   elixir,

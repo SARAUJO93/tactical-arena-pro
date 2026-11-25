@@ -40,6 +40,7 @@ export class ArenaRuntime {
   private demoAccumulator = 0;
   private frameId: number | null = null;
   private stopped = false;
+  private frameSamples: number[] = [];
 
   constructor(private readonly deps: ArenaRuntimeDependencies) {}
 
@@ -58,6 +59,19 @@ export class ArenaRuntime {
 
   tickOneSecond(): void {
     resetIfNeeded();
+    if (this.frameSamples.length > 0) {
+      const average = this.frameSamples.reduce((sum, value) => sum + value, 0) / this.frameSamples.length;
+      state.telemetry.averageFrameMs = Math.round(average * 10) / 10;
+      state.telemetry.maxFrameMs = Math.max(...this.frameSamples);
+      state.telemetry.fps = Math.round(1000 / Math.max(1, average));
+      this.frameSamples = [];
+    }
+    const memory = (performance as Performance & {
+      memory?: { usedJSHeapSize: number };
+    }).memory;
+    state.telemetry.usedHeapMb = memory
+      ? Math.round((memory.usedJSHeapSize / 1048576) * 10) / 10
+      : null;
 
     if (state.telemetryOpen) renderTelemetry();
     if (!state.roundActive) return;
@@ -122,6 +136,10 @@ export class ArenaRuntime {
   private loop(now: number): void {
     if (this.stopped) return;
     const dtSec = Math.min(0.05, Math.max(0.008, (now - this.lastTime) / 1000));
+    const frameMs = Math.max(0, now - this.lastTime);
+    if (Number.isFinite(frameMs) && frameMs > 0) {
+      this.frameSamples.push(frameMs);
+    }
     this.lastTime = now;
 
     const clock = consumeAccumulator(this.clockAccumulator, dtSec, 1);

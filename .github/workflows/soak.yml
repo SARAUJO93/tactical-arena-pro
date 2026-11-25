@@ -1,0 +1,39 @@
+name: Soak — Tactical Arena
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration_seconds:
+        description: Duración de estabilidad en segundos
+        required: true
+        default: '1800'
+
+jobs:
+  soak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      - name: Run soak test
+        env:
+          SOAK_DURATION_SECONDS: ${{ inputs.duration_seconds }}
+        run: npm run test:soak
+
+      - name: Upload soak artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soak-results
+          path: |
+            test-results/
+            playwright-report/

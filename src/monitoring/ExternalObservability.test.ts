@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sanitizeExternalEndpoint } from './ExternalObservability';
+import { buildSanitizedPayload, sanitizeExternalEndpoint } from './ExternalObservability';
 
 describe('ExternalObservability', () => {
   it('permite HTTPS y HTTP local', () => {
@@ -19,5 +19,14 @@ describe('ExternalObservability', () => {
   it('rechaza URLs invalidas', () => {
     expect(sanitizeExternalEndpoint('')).toBeNull();
     expect(sanitizeExternalEndpoint('not-a-url')).toBeNull();
+  });
+
+  it('incluye solo métricas agregadas y rendimiento', () => {
+    const payload = buildSanitizedPayload('2.7.0');
+    expect(payload.appVersion).toBe('2.7.0');
+    expect(payload).toHaveProperty('quality.roundCount');
+    expect(payload).toHaveProperty('performance.fps');
+    expect(payload).not.toHaveProperty('user');
+    expect(payload).not.toHaveProperty('chat');
   });
 });

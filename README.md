@@ -71,3 +71,10 @@ una URL HTTPS o una URL HTTP local y aceptar el envío opt-in.
 Los payloads contienen versión, identificador aleatorio de sesión, métricas agregadas
 y categorías de error. No incluyen nombres de usuarios, chat, regalos, URLs de avatares
 ni mensajes completos.
+
+## Cobertura P1
+
+- CI ejecuta auditoría de dependencias de producción.
+- El workflow `Soak — Tactical Arena` permite una ejecución manual de hasta 30 minutos.
+- La telemetría muestra FPS, frame medio, frame máximo y heap usado cuando el navegador lo expone.
+- El estado externo distingue apagado, esperando, enviado y fallido.

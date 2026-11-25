@@ -76,6 +76,10 @@ export interface TelemetryData {
   runtimeErrorCount: number;
   persistenceErrorCount: number;
   websocketDisconnectCount: number;
+  fps: number;
+  averageFrameMs: number;
+  maxFrameMs: number;
+  usedHeapMb: number | null;
   errorLog: string[];
   giftBreakdown: Record<string, { count: number; coins: number }>;
   wsLog: string[];
@@ -352,6 +356,10 @@ export const state = {
     runtimeErrorCount: 0,
     persistenceErrorCount: 0,
     websocketDisconnectCount: 0,
+    fps: 0,
+    averageFrameMs: 0,
+    maxFrameMs: 0,
+    usedHeapMb: null,
     errorLog: [],
     giftBreakdown: {},
     wsLog: [],
@@ -728,6 +736,10 @@ export function resetSession(): void {
     runtimeErrorCount: 0,
     persistenceErrorCount: 0,
     websocketDisconnectCount: 0,
+    fps: 0,
+    averageFrameMs: 0,
+    maxFrameMs: 0,
+    usedHeapMb: null,
     errorLog: [],
     giftBreakdown: {},
     wsLog: [],
@@ -1273,6 +1285,12 @@ export function loadPersistentState(): void {
         'runtimeErrorCount', 'persistenceErrorCount', 'websocketDisconnectCount',
       ] as const) {
         if (finiteNumber(telemetry[key])) state.telemetry[key] = Math.max(0, telemetry[key]);
+      }
+      for (const key of ['fps', 'averageFrameMs', 'maxFrameMs'] as const) {
+        if (finiteNumber(telemetry[key])) state.telemetry[key] = Math.max(0, telemetry[key]);
+      }
+      if (finiteNumber(telemetry.usedHeapMb)) {
+        state.telemetry.usedHeapMb = Math.max(0, telemetry.usedHeapMb);
       }
       if (Array.isArray(telemetry.errorLog)) {
         state.telemetry.errorLog = telemetry.errorLog

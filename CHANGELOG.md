@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.7.0 - 2026-11-24
+
+- Added FPS, frame-time and JavaScript heap telemetry.
+- Added external delivery status in the settings panel.
+- Added dependency audit checks to CI and release validation.
+- Added a manual 30-minute soak workflow.
+- Kept release validation blocking when automated checks fail.
+
 ## 2.6.0 - 2026-11-24
 
 - Added opt-in external quality observability.
