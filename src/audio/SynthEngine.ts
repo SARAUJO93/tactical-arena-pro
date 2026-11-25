@@ -2,9 +2,28 @@ import { state } from '../core/GameState';
 import { BiomeTheme, getActiveBiome } from '../config/biomes';
 
 const SFX_CD: Record<string, number> = {
-  rifle: 70, cannon: 105, jet: 340, tap: 85, shield: 300,
-  emp: 350, hack: 350, meteor: 160, panic: 2600, frenzy: 400,
-  sudden_horn: 800, nuclear_siren: 700, orbital_boom: 400, victory: 500, follow: 200,
+  rifle: 65,
+  deploy_infantry: 120,
+  cannon: 110,
+  deploy_tank: 240,
+  tank_explode: 160,
+  bomb_impact: 130,
+  tower_fall: 450,
+  turret: 140,
+  jet: 340,
+  tap: 85,
+  shield: 300,
+  emp: 350,
+  hack: 350,
+  meteor: 160,
+  meteor_alert: 700,
+  panic: 2600,
+  frenzy: 400,
+  sudden_horn: 800,
+  nuclear_siren: 700,
+  orbital_boom: 400,
+  victory: 500,
+  follow: 200,
 };
 
 function midiToFreq(m: number): number {
@@ -340,7 +359,6 @@ export class SynthEngine {
       if (AC) {
         this.ctx = new AC();
 
-        // Compresor master para cohesión y pegada orquestal
         const compressor = this.ctx.createDynamicsCompressor();
         compressor.threshold.value = -16;
         compressor.knee.value = 18;
@@ -354,7 +372,6 @@ export class SynthEngine {
         this.dryBus = this.ctx.createGain();
         this.dryBus.gain.value = 0.82;
 
-        // Reverb procedural de sala de conciertos (ConvolverNode)
         const reverb = this.ctx.createConvolver();
         reverb.buffer = this.createHallImpulse(this.ctx, 1.35, 2.8);
         this.wetBus = this.ctx.createGain();
@@ -606,7 +623,6 @@ export class SynthEngine {
     const beatStep = idx % 16;
     const intense = state.suddenDeathActive || state.frenzyActive;
 
-    // 1. Tambores de guerra / Timbales + Sub-bajo orquestal
     const bassNote = track.bass[idx];
     if (bassNote) {
       const f = midiToFreq(bassNote);
@@ -623,7 +639,6 @@ export class SynthEngine {
       o.start(t);
       o.stop(t + stepSec * 1.9);
 
-      // Cuerpo grave (sub)
       const sub = this.ctx.createOscillator();
       const sg = this.ctx.createGain();
       sub.type = 'sine';
@@ -637,7 +652,6 @@ export class SynthEngine {
       sub.stop(t + stepSec * 1.65);
     }
 
-    // 2. Cama de cuerdas / Coro suave al inicio de cada compás
     if (beatStep === 0) {
       const chord = track.strings[bar];
       chord.slice(0, 3).forEach((note) => {
@@ -664,7 +678,6 @@ export class SynthEngine {
       }
     }
 
-    // 3. Cuerdas Spiccato (ensamble con ligero detune para ancho orquestal)
     const chord = track.strings[bar];
     const strNote = chord[idx % chord.length];
     const s1 = this.ctx.createOscillator();
@@ -692,7 +705,6 @@ export class SynthEngine {
     s1.stop(t + stepSec * 0.82);
     s2.stop(t + stepSec * 0.82);
 
-    // 4. Sección de Metales Heroicos (3 voces con swell de filtro tipo trompa/trompeta)
     const brassNote = track.brass[idx];
     if (brassNote && state.musicMode !== 'pulse') {
       const b1 = this.ctx.createOscillator();
@@ -734,7 +746,6 @@ export class SynthEngine {
       bSub.stop(t + stepSec * 2.5);
     }
 
-    // 5. Contramelodía / Detalle característico del bioma
     const counterNote = track.counter[idx];
     if (counterNote && state.musicMode !== 'pulse') {
       const co = this.ctx.createOscillator();
@@ -750,7 +761,6 @@ export class SynthEngine {
       co.stop(t + stepSec * 2.0);
     }
 
-    // 6. Percusión táctica (redoble militar, platillos y acento del bioma)
     if (this.noiseBuffer) {
       if (track.snareSteps.includes(beatStep) || (state.suddenDeathActive && beatStep === 10)) {
         const sn = this.ctx.createBufferSource();
@@ -788,7 +798,6 @@ export class SynthEngine {
       }
     }
 
-    // Percusión de color única por bioma (yunque, darbuka, madera)
     if (track.accentSteps.includes(beatStep) && track.accentKind !== 'bell') {
       const ao = this.ctx.createOscillator();
       const ag = this.ctx.createGain();
@@ -892,24 +901,107 @@ export class SynthEngine {
     if (!this.ctx || this.ctx.state !== 'running') return;
     const t = this.ctx.currentTime;
 
-    const tone = (freq1: number, freq2: number, dur: number, wave: OscillatorType = 'triangle', vol = 0.14) => {
+    const tone = (
+      freq1: number,
+      freq2: number,
+      dur: number,
+      wave: OscillatorType = 'triangle',
+      vol = 0.14,
+      delay = 0
+    ) => {
       if (!this.ctx) return;
+      const start = t + delay;
       const o = this.ctx.createOscillator();
       const g = this.ctx.createGain();
       o.type = wave;
-      o.frequency.setValueAtTime(freq1, t);
-      o.frequency.exponentialRampToValueAtTime(Math.max(20, freq2), t + dur);
-      g.gain.setValueAtTime(vol, t);
-      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      o.frequency.setValueAtTime(freq1, start);
+      o.frequency.exponentialRampToValueAtTime(Math.max(20, freq2), start + dur);
+      g.gain.setValueAtTime(vol, start);
+      g.gain.exponentialRampToValueAtTime(0.001, start + dur);
       o.connect(g);
       g.connect(this.ctx.destination);
-      o.start(t);
-      o.stop(t + dur + 0.01);
+      o.start(start);
+      o.stop(start + dur + 0.01);
+    };
+
+    const noiseHit = (
+      filterType: BiquadFilterType,
+      freq: number,
+      dur: number,
+      vol: number,
+      delay = 0
+    ) => {
+      if (!this.ctx || !this.noiseBuffer) return;
+      const start = t + delay;
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.noiseBuffer;
+      const flt = this.ctx.createBiquadFilter();
+      flt.type = filterType;
+      flt.frequency.setValueAtTime(freq, start);
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(vol, start);
+      g.gain.exponentialRampToValueAtTime(0.001, start + dur);
+      src.connect(flt);
+      flt.connect(g);
+      g.connect(this.ctx.destination);
+      src.start(start);
+      src.stop(start + dur + 0.01);
     };
 
     switch (type) {
-      case 'rifle': tone(520, 180, 0.06, 'square', 0.045); break;
-      case 'cannon': tone(140, 38, 0.22, 'sawtooth', 0.16); break;
+      // Soldado: disparo seco con ligera variación aleatoria para no sonar robótico
+      case 'rifle': {
+        const pitch = 0.92 + Math.random() * 0.16;
+        tone(620 * pitch, 190 * pitch, 0.045, 'square', 0.032);
+        noiseHit('bandpass', 2400 * pitch, 0.045, 0.045);
+        break;
+      }
+      // Despliegue de infantería: doble toque rápido de marcha
+      case 'deploy_infantry':
+        tone(340, 480, 0.05, 'triangle', 0.06);
+        tone(480, 640, 0.06, 'triangle', 0.055, 0.055);
+        break;
+
+      // Tanque: disparo grave con golpe de cañón
+      case 'cannon':
+        tone(125, 36, 0.2, 'sawtooth', 0.14);
+        noiseHit('lowpass', 720, 0.16, 0.11);
+        break;
+      // Despliegue de tanque: arranque pesado mecánico
+      case 'deploy_tank':
+        tone(78, 128, 0.14, 'sawtooth', 0.09);
+        tone(110, 82, 0.12, 'triangle', 0.07, 0.12);
+        break;
+      // Explosión de tanque destruido
+      case 'tank_explode':
+        tone(95, 26, 0.34, 'sawtooth', 0.18);
+        noiseHit('lowpass', 520, 0.32, 0.15);
+        break;
+
+      // Bomba de Jet: impacto seco más agudo con chispazo
+      case 'bomb_impact':
+        tone(220, 52, 0.22, 'triangle', 0.14);
+        noiseHit('bandpass', 1400, 0.2, 0.12);
+        break;
+
+      // Caída de torre lateral: derrumbe profundo (resalta la corona)
+      case 'tower_fall':
+        tone(88, 24, 0.55, 'sawtooth', 0.22);
+        tone(160, 42, 0.42, 'triangle', 0.15, 0.06);
+        noiseHit('lowpass', 420, 0.5, 0.18);
+        break;
+
+      // Torreta defensiva: pulso táctico muy limpio y sutil
+      case 'turret':
+        tone(880, 440, 0.045, 'sine', 0.032);
+        break;
+
+      // Alerta de lluvia de meteoritos (distinta a Muerte Súbita)
+      case 'meteor_alert':
+        tone(920, 260, 0.38, 'sawtooth', 0.13);
+        tone(680, 190, 0.38, 'triangle', 0.1, 0.14);
+        break;
+
       case 'jet': tone(420, 1100, 0.28, 'sawtooth', 0.08); break;
       case 'tap': tone(660, 880, 0.07, 'sine', 0.07); break;
       case 'shield': tone(360, 720, 0.3, 'sine', 0.14); break;

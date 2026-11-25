@@ -607,7 +607,7 @@ bus.on('action:instant', ({ team, kind, user, avatarUrl, giftName, mult = 1 }) =
     if (!state.takeoverActive) runNextTakeover();
   } else if (kind === 'METEOR_SHOWER') {
     state.meteorRainRemaining += 9;
-    synth.duck(3000); synth.playSFX('sudden_horn');
+    synth.duck(3000); synth.playSFX('meteor_alert');
     showCenterBanner('☄️ LLUVIA DE METEORITOS', `${user} • Impactos orbitales en zona central`, '#FB923C');
   }
 });

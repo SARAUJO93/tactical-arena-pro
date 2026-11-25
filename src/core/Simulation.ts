@@ -373,7 +373,7 @@ export class Simulation {
           isA ? 0.35 : -0.35
         );
       }
-      this.synth.playSFX('rifle');
+      this.synth.playSFX('deploy_infantry');
     } else if (order.kind === 'TANK') {
       this.units.push({
         type: 'tank',
@@ -402,7 +402,7 @@ export class Simulation {
         empStun: 0,
         hackedFlash: 0,
       });
-      this.synth.playSFX('cannon');
+      this.synth.playSFX('deploy_tank');
     } else if (order.kind === 'JET') {
       const jetX = this.getBridgeX(lane);
       this.jets.push({
@@ -580,7 +580,7 @@ export class Simulation {
     const pos = this.getSideTowerPos(targetTeam, lane);
     if (tower.hp <= 0) {
       this.spawnExplosion(pos.x, pos.y, base.color, 'medium');
-      this.synth.playSFX('cannon');
+      this.synth.playSFX('tower_fall');
       state.shake = Math.max(state.shake, 7);
       this.pushBadge(pos.x, pos.y, '💥 TORRE CAÍDA', '#FDE047', -0.7);
       if (state.suddenDeathActive) this.onVictory(targetTeam === 'A' ? 'B' : 'A', 'sudden_death_tower');
@@ -659,6 +659,7 @@ export class Simulation {
             vx: Math.cos(sd.angle) * 8.2, vy: Math.sin(sd.angle) * 8.2,
             damage: 10, splash: 0, color: baseObj.color, life: 28,
           });
+          this.synth.playSFX('turret');
         }
       }
       if (sd.cooldown > 0) sd.cooldown -= ts;
@@ -685,6 +686,7 @@ export class Simulation {
             vx: Math.cos(ang) * 8.2, vy: Math.sin(ang) * 8.2,
             damage: 8, splash: 0, color: baseObj.color, life: 26,
           });
+          this.synth.playSFX('turret');
         }
       }
       if (baseObj.turretCooldowns[idx] > 0) baseObj.turretCooldowns[idx] -= ts;
@@ -720,7 +722,7 @@ export class Simulation {
       const u = this.units[i];
       if (u.hp <= 0) {
         this.spawnExplosion(u.x, u.y, u.team === 'A' ? state.teamA.color : state.teamB.color, u.type === 'tank' ? 'medium' : 'small');
-        if (u.type === 'tank') { this.synth.playSFX('cannon'); state.shake = Math.max(state.shake, 3.2); }
+        if (u.type === 'tank') { this.synth.playSFX('tank_explode'); state.shake = Math.max(state.shake, 3.2); }
         this.units.splice(i, 1);
         continue;
       }
@@ -888,7 +890,7 @@ export class Simulation {
       const b = this.bombs[i]; b.progress += 0.095 * ts;
       if (b.progress >= 1) {
         const enemyTeam: TeamId = b.team === 'A' ? 'B' : 'A';
-        this.spawnExplosion(b.tx, b.ty, b.color, 'medium'); this.synth.playSFX('cannon'); state.shake = Math.max(state.shake, 3.5);
+        this.spawnExplosion(b.tx, b.ty, b.color, 'medium'); this.synth.playSFX('bomb_impact'); state.shake = Math.max(state.shake, 3.5);
         for (const u of this.units) if (u.team === enemyTeam && distSq(u.x, u.y, b.tx, b.ty) < 58 * 58) u.hp -= 70 * dmgMult;
         ([0, 1] as const).forEach((lane) => {
           const tp = this.getSideTowerPos(enemyTeam, lane);
