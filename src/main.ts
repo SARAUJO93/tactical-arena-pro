@@ -340,11 +340,31 @@ function renderBiomeVote(weeklyBiomeId: BiomeTheme['id'] | null = null): void {
     return;
   }
   element.classList.remove('hidden');
-  const featuredOption = [snapshot.first, snapshot.second].find((biome) => biome.id === weeklyBiomeId);
-  const featuredLabel = featuredOption ? ` · ⭐ ${featuredOption.name} destacado semanal` : '';
-  element.textContent =
-    `🗺️ ¡VOTA! Escribe 1 o 2 · 1 ${snapshot.first.icon} ${snapshot.first.name} (${snapshot.votesFirst})` +
-    ` · 2 ${snapshot.second.icon} ${snapshot.second.name} (${snapshot.votesSecond}) · Empate: gana 1${featuredLabel}`;
+
+  const renderOption = (num: 1 | 2, biome: BiomeTheme, votes: number, leading: boolean) => {
+    const star = biome.id === weeklyBiomeId ? ' ⭐' : '';
+    const countHtml = votes > 0
+      ? `<span class="vic-vote-count tabular">${votes} ${votes === 1 ? 'voto' : 'votos'}</span>`
+      : '';
+    return `
+      <div class="vic-vote-option${leading ? ' leading' : ''}">
+        <span class="vic-vote-key">${num}</span>
+        <div class="vic-vote-copy">
+          <span class="vic-vote-name">${biome.icon} ${escapeHtml(biome.name)}${star}</span>
+          ${countHtml}
+        </div>
+      </div>`;
+  };
+
+  const firstLeads = snapshot.votesFirst > 0 && snapshot.votesFirst >= snapshot.votesSecond;
+  const secondLeads = snapshot.votesSecond > snapshot.votesFirst;
+
+  element.innerHTML =
+    `<div class="vic-vote-head">🗺️ VOTA EL SIGUIENTE MAPA · ESCRIBE 1 O 2</div>` +
+    `<div class="vic-vote-grid">` +
+    renderOption(1, snapshot.first, snapshot.votesFirst, firstLeads) +
+    renderOption(2, snapshot.second, snapshot.votesSecond, secondLeads) +
+    `</div>`;
 }
 
 function openBiomeVote(weeklyBiomeId: BiomeTheme['id'] | null): void {
@@ -353,7 +373,8 @@ function openBiomeVote(weeklyBiomeId: BiomeTheme['id'] | null): void {
     biomeVote.reset();
     nextBiomeOverride = options[0].id;
     $('vicBiomeVote').classList.remove('hidden');
-    $('vicBiomeVote').textContent = `🔄 Último bioma de la rotación: ${options[0].icon} ${options[0].name}`;
+    $('vicBiomeVote').innerHTML =
+      `<div class="vic-vote-head">🗺️ SIGUIENTE MAPA: ${options[0].icon} ${escapeHtml(options[0].name)}</div>`;
     return;
   }
 
@@ -651,7 +672,7 @@ bus.on('game:chat', ({ user, comment, avatarUrl }) => {
   if (state.towerDecayActive) return;
   if (!state.roundActive) {
     const snapshot = biomeVote.castVote(user, comment);
-    if (snapshot) renderBiomeVote();
+    if (snapshot) renderBiomeVote(getWeeklyEventForDate().featuredBiomeId);
     return;
   }
 
