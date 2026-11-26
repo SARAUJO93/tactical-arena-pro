@@ -450,7 +450,7 @@ export class SynthEngine {
     }
   }
 
-  private playCinematicPercussion(t: number, stepSec: number, bar: number, beatStep: number, intense: boolean): void {
+  private playCinematicPercussion(t: number, bar: number, beatStep: number, intense: boolean): void {
     if (!this.ctx) return;
 
     if (beatStep === 0 || beatStep === 8) {
@@ -826,7 +826,7 @@ export class SynthEngine {
       ao.stop(t + 0.1);
     }
 
-    this.playCinematicPercussion(t, stepSec, bar, beatStep, intense);
+    this.playCinematicPercussion(t, bar, beatStep, intense);
   }
 
   private startSequencer(): void {
