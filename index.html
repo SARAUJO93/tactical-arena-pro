@@ -313,20 +313,40 @@
 
       </div>
 
-      <!-- CINEMÁTICA ÉPICA DE VICTORIA -->
+      <!-- CINEMÁTICA TÁCTICA DE VICTORIA SOBRE LA ARENA -->
       <div id="victoryOverlay" class="hidden" role="dialog" aria-modal="true" aria-label="Resultado de batalla" aria-live="polite">
         <div class="vic-rays"></div>
-        <div class="vic-spark vic-spark-a">✦</div>
-        <div class="vic-spark vic-spark-b">✧</div>
-        <div class="vic-spark vic-spark-c">✦</div>
         <div class="vic-cinematic-content">
-          <div id="vicKicker" class="vic-kicker">TACTICAL ARENA · FIN DE BATALLA</div>
-          <div class="vic-crown"><svg class="ui-icon" aria-hidden="true"><use href="#icon-crown"></use></svg></div>
-          <div class="vic-flag-shell"><div id="vicFlag" aria-label="Bandera ganadora"></div></div>
-          <div class="vic-title">¡FELICIDADES!</div>
-          <div class="vic-subtitle">¡EL EQUIPO HA TRIUNFADO!</div>
-          <div id="vicName">MÉXICO</div>
-          <div id="vicStreakText" class="vic-streak hidden">🔥 2 VICTORIAS EN EL TRONO</div>
+          <div id="vicKicker" class="vic-kicker">TACTICAL ARENA · CIERRE DE SECTOR</div>
+
+          <!-- Placa superior: rival / bando derrotado -->
+          <div id="vicLoserBanner" class="vic-side-plate vic-loser-plate">
+            <span id="vicLoserFlag" class="vic-side-flag">🇦🇷</span>
+            <span id="vicLoserName" class="vic-side-name">ARGENTINA</span>
+            <span class="vic-side-tag">SECTOR CAÍDO</span>
+          </div>
+
+          <!-- Núcleo central VS / ¡GANADOR! + 3 coronas modulares -->
+          <div class="vic-center-stage">
+            <div class="vic-vs-pill">VS.</div>
+            <div class="vic-title">¡GANADOR!</div>
+            <div class="vic-crown-rack" aria-hidden="true">
+              <span class="vic-crown-slot"><svg class="ui-icon"><use href="#icon-crown"></use></svg></span>
+              <span class="vic-crown-slot"><svg class="ui-icon"><use href="#icon-crown"></use></svg></span>
+              <span class="vic-crown-slot"><svg class="ui-icon"><use href="#icon-crown"></use></svg></span>
+            </div>
+          </div>
+
+          <!-- Placa inferior: bando ganador -->
+          <div id="vicWinnerPlate" class="vic-side-plate vic-winner-plate">
+            <div class="vic-flag-shell"><div id="vicFlag" aria-label="Bandera ganadora"></div></div>
+            <div class="vic-winner-info">
+              <div class="vic-subtitle">ESCUADRA DOMINANTE</div>
+              <div id="vicName">MÉXICO</div>
+            </div>
+            <div id="vicStreakText" class="vic-streak hidden">🔥 2</div>
+          </div>
+
           <div id="vicCrownScore" class="vic-crown-score" aria-live="polite">👑 CORONAS 0 — 0</div>
 
           <div class="vic-mvp-card">
@@ -346,7 +366,7 @@
           <div id="vicBiomeVote" class="vic-biome-vote hidden" aria-live="polite"></div>
           <div class="vic-countdown-label">SIGUIENTE BATALLA EN <strong id="vicCountdown" class="tabular">20</strong>s</div>
           <div class="vic-progress"><span class="vic-progress-fill"></span></div>
-          <div class="vic-thanks">GRACIAS POR PARTICIPAR</div>
+          <div class="vic-thanks">TACTICAL ARENA · PROTOCOLO DE REDESPLIEGUE</div>
         </div>
       </div>
 

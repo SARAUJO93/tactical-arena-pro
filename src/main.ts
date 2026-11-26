@@ -1019,11 +1019,9 @@ function triggerVictory(
   const seasonPeak = mvpRec ? Math.max(topRound.score, mvpRec.peaks.maxRoundScore) : topRound.score;
   const exploration = getBiomeExplorationProgress(mvpRec?.badges);
 
-  $('vicFlag').innerHTML = renderTeamFlagHtml(winObj.key, winObj.flag, 'hero');
-  $('vicName').textContent = winObj.name;
-  $('vicName').style.color = winObj.color;
   const crownScoreA = getCrownScore(state.teamA);
   const crownScoreB = getCrownScore(state.teamB);
+  const winnerCrowns = Math.max(1, Math.min(3, winner === 'A' ? crownScoreA : crownScoreB));
   const towerHealthA = Math.round(getDefenseHealthPercent(state.teamA));
   const towerHealthB = Math.round(getDefenseHealthPercent(state.teamB));
   const decisionLabel = finishReason === 'crowns'
@@ -1033,6 +1031,18 @@ function triggerVictory(
       : finishReason === 'tower_decay'
         ? ' · VICTORIA POR COLAPSO DE TORRES'
         : '';
+
+  $('victoryOverlay').style.setProperty('--vic-accent', winObj.color);
+  $('vicLoserFlag').innerHTML = renderTeamFlagHtml(loseObj.key, loseObj.flag, 'inline');
+  $('vicLoserName').textContent = loseObj.name;
+
+  document.querySelectorAll<HTMLElement>('#victoryOverlay .vic-crown-slot').forEach((slot, idx) => {
+    slot.classList.toggle('earned', idx < winnerCrowns);
+  });
+
+  $('vicFlag').innerHTML = renderTeamFlagHtml(winObj.key, winObj.flag, 'hero');
+  $('vicName').textContent = winObj.name;
+  $('vicName').style.color = winObj.color;
   $('vicCrownScore').textContent =
     `👑 CORONAS ${crownScoreA} — ${crownScoreB} · VIDA ${towerHealthA}% — ${towerHealthB}%${decisionLabel}`;
   const vicAvatar = $('vicMvpAvatar') as HTMLImageElement;
@@ -1043,8 +1053,8 @@ function triggerVictory(
   $('vicNextGoal').textContent = exploration.complete
     ? '🧭 Marco Explorador desbloqueado'
     : `🧭 Próxima meta del MVP: ${exploration.visited}/${exploration.target} biomas · participa en otro`;
-  $('vicStreakText').classList.toggle('hidden', !(state.tournamentMode && winObj.streak >= 1));
-  $('vicStreakText').textContent = `🔥 ${winObj.streak} VICTORIA${winObj.streak > 1 ? 'S' : ''} EN EL TRONO`;
+  $('vicStreakText').classList.toggle('hidden', !(!cupWasActive && state.tournamentMode && winObj.streak >= 1));
+  $('vicStreakText').textContent = `🔥 ${winObj.streak}`;
   const cupRoundNames = ['RONDA DE 64', 'RONDA DE 32', 'OCTAVOS', 'CUARTOS', 'SEMIFINAL', 'FINAL'];
   if (nextWorldCupMatch?.teamA && nextWorldCupMatch.teamB) {
     const roundIndex = state.worldCup.rounds.findIndex((round) => round.includes(nextWorldCupMatch));
