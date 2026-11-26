@@ -261,7 +261,7 @@ html, body {
 #notificationAvatar { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 .notification-copy { flex: 1 1 auto; min-width: 0; overflow: hidden; }
 .notification-line { display: flex; align-items: baseline; gap: 5px; white-space: nowrap; overflow: hidden; }
-#notificationTitle { color: #fde047; font-size: 8.6px; font-weight: 800; max-width: 48%; overflow: hidden; text-overflow: ellipsis; }
+#notificationTitle { color: #fde047; font-size: 8.6px; font-weight: 800; max-width: 56%; overflow: hidden; text-overflow: ellipsis; }
 #notificationSub { color: #f8fafc; font-size: 8.1px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 #notificationTag { color: #cbd5e1; font-size: 6.8px; font-weight: 800; letter-spacing: 0.1em; padding-left: 5px; border-left: 1px solid rgba(255, 255, 255, 0.22); }
 .notification-progress {

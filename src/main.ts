@@ -734,8 +734,8 @@ bus.on('game:tap', ({ user, count, avatarUrl, forcedTeam, isDemo = false }) => {
       );
     } else if (progress.milestoneLabel) {
       pushNotificationDock(
-        `${shortUser(clean)} · ${progress.milestoneLabel}`,
-        `Nv.${progress.level} · Equipo ${tObj.key}`,
+        shortUser(clean),
+        `${progress.milestoneLabel} · Nv.${progress.level} · ${tObj.key}`,
         tObj.color,
         avatarUrl,
         clean,
