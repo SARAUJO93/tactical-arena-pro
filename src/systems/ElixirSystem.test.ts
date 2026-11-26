@@ -102,4 +102,52 @@ describe('ElixirSystem', () => {
     expect(sys.getSnapshot('A').empSlowTimer).toBe(0);
     unsub();
   });
+
+  it('AI Director mantiene ritmo simétrico en chat silencioso y prioriza Jets en Muerte Súbita', () => {
+    sys.addElixir('A', 0.6); // 5.6 (> 5.5 de chat silencioso)
+    sys.addElixir('B', 0.6); // 5.6
+    sys.update(0.1, makeCtx({
+      aiDirectorEnabled: true,
+      idleSeconds: 15,
+    }));
+
+    expect(deployed.some((o) => o.team === 'A')).toBe(true);
+    expect(deployed.some((o) => o.team === 'B')).toBe(true);
+
+    deployed = [];
+    sys.resetRound();
+    sys.addElixir('A', 0.3); // 5.3 (> 5.2 de Muerte Súbita)
+    sys.update(0.1, makeCtx({
+      aiDirectorEnabled: true,
+      suddenDeathActive: true,
+    }));
+
+    expect(deployed.find((o) => o.team === 'A')?.kind).toBe('JET');
+    unsub();
+  });
+
+  it('AI Director despliega Tanque para frenar oleadas enemigas', () => {
+    sys.addElixir('A', 0.6); // 5.6
+    sys.update(0.1, makeCtx({
+      aiDirectorEnabled: true,
+      idleSeconds: 15,
+      unitCountByTeam: (team) => (team === 'B' ? 5 : 1),
+    }));
+
+    expect(deployed.find((o) => o.team === 'A')?.kind).toBe('TANK');
+    unsub();
+  });
+
+  it('AI Director no encola unidades si tanto tierra como aire están en su límite', () => {
+    sys.addElixir('A', 5);
+    sys.update(0.1, makeCtx({
+      aiDirectorEnabled: true,
+      unitCountByTeam: () => ELIXIR_CONFIG.MAX_UNITS_PER_TEAM,
+      jetCountByTeam: () => ELIXIR_CONFIG.MAX_JETS_PER_TEAM,
+    }));
+
+    expect(deployed).toHaveLength(0);
+    expect(sys.getSnapshot('A').queueLength).toBe(0);
+    unsub();
+  });
 });

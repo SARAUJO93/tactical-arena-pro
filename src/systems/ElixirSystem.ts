@@ -6,6 +6,9 @@ export const ELIXIR_CONFIG = {
   BASE_REGEN_PER_SEC: 0.55,
   DEPLOY_GCD_SEC: 0.6,
   AUTO_DEPLOY_THRESHOLD: 6.8,
+  QUIET_CHAT_IDLE_SEC: 12,
+  QUIET_CHAT_THRESHOLD: 5.5,
+  SUDDEN_DEATH_THRESHOLD: 5.2,
   MAX_UNITS_PER_TEAM: 32,
   MAX_JETS_PER_TEAM: 6,
   MAX_SOCIAL_QUEUE: 3,
@@ -33,6 +36,7 @@ export interface ElixirContextSnapshot {
   aiDirectorEnabled?: boolean;
   unitCountByTeam: (team: TeamId) => number;
   jetCountByTeam?: (team: TeamId) => number;
+  idleSeconds?: number;
 }
 
 export class ElixirSystem {
@@ -166,6 +170,49 @@ export class ElixirSystem {
     pool.queue.sort((a, b) => a.priority - b.priority || a.enqueuedAt - b.enqueuedAt);
   }
 
+  private getAutoDeployThreshold(ctx: ElixirContextSnapshot): number {
+    if (ctx.suddenDeathActive) return ELIXIR_CONFIG.SUDDEN_DEATH_THRESHOLD;
+    if ((ctx.idleSeconds ?? 0) >= ELIXIR_CONFIG.QUIET_CHAT_IDLE_SEC) {
+      return ELIXIR_CONFIG.QUIET_CHAT_THRESHOLD;
+    }
+    return ELIXIR_CONFIG.AUTO_DEPLOY_THRESHOLD;
+  }
+
+  private pickAutoUnit(
+    team: TeamId,
+    enemy: TeamId,
+    elixir: number,
+    ctx: ElixirContextSnapshot
+  ): UnitOrderKind | null {
+    const myUnits = ctx.unitCountByTeam(team);
+    const enemyUnits = ctx.unitCountByTeam(enemy);
+    const myJets = ctx.jetCountByTeam?.(team) ?? 0;
+    const unitsAvailable = myUnits < ELIXIR_CONFIG.MAX_UNITS_PER_TEAM;
+    const jetsAvailable = myJets < ELIXIR_CONFIG.MAX_JETS_PER_TEAM;
+
+    if (!unitsAvailable && !jetsAvailable) return null;
+    if (!unitsAvailable) return 'JET';
+
+    // Contra-oleada: el tanque limpia grupos enemigos con daño en área
+    if (elixir >= ELIXIR_CONFIG.BASE_COSTS.TANK && enemyUnits >= myUnits + 3 && enemyUnits >= 4) {
+      return 'TANK';
+    }
+
+    if (elixir >= 8.5 && enemyUnits >= 5) {
+      return 'TANK';
+    }
+
+    // En Muerte Súbita, mayor prioridad a Jets para presionar torres
+    if (ctx.suddenDeathActive && jetsAvailable && this.rng() < 0.35) {
+      return 'JET';
+    }
+
+    const roll = this.rng();
+    if (roll < 0.62) return 'INFANTRY';
+    if (roll < 0.84 && elixir >= ELIXIR_CONFIG.BASE_COSTS.TANK) return 'TANK';
+    return jetsAvailable ? 'JET' : 'INFANTRY';
+  }
+
   update(dtSec: number, ctx: ElixirContextSnapshot): void {
     if (!ctx.roundActive || !Number.isFinite(dtSec) || dtSec <= 0) return;
     const safeScale = Number.isFinite(ctx.timeScale) && ctx.timeScale >= 0 ? ctx.timeScale : 1;
@@ -174,6 +221,8 @@ export class ElixirSystem {
     let phaseMult = 1;
     if (ctx.suddenDeathActive) phaseMult = 3;
     else if (ctx.frenzyActive || ctx.roundTimeLeft <= 60) phaseMult = 2;
+
+    const autoThreshold = this.getAutoDeployThreshold(ctx);
 
     (['A', 'B'] as TeamId[]).forEach((team) => {
       const pool = this.pools[team];
@@ -192,24 +241,23 @@ export class ElixirSystem {
         pool.deployCooldown = Math.max(0, pool.deployCooldown - scaledDt);
       }
 
-      // Director IA respeta el GCD antes de auto-encolar
+      // Director IA táctico: respeta GCD, límites de población y ritmo de la ronda
       if (
         ctx.aiDirectorEnabled !== false &&
         pool.deployCooldown <= 0 &&
         pool.queue.length === 0 &&
-        pool.elixir >= ELIXIR_CONFIG.AUTO_DEPLOY_THRESHOLD
+        pool.elixir >= autoThreshold
       ) {
-        const enemyCount = ctx.unitCountByTeam(enemy);
-        const autoKind: UnitOrderKind =
-          pool.elixir >= 8.5 && enemyCount >= 5 ? 'TANK' : this.rng() < 0.72 ? 'INFANTRY' : 'JET';
-
-        this.enqueueOrder({
-          team,
-          kind: autoKind,
-          priority: 3,
-          user: '',
-          avatarUrl: '',
-        });
+        const autoKind = this.pickAutoUnit(team, enemy, pool.elixir, ctx);
+        if (autoKind) {
+          this.enqueueOrder({
+            team,
+            kind: autoKind,
+            priority: 3,
+            user: '',
+            avatarUrl: '',
+          });
+        }
       }
 
       const next = pool.queue[0];

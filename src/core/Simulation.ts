@@ -6,6 +6,7 @@ import { getCosmeticFrameFromBadges } from '../systems/SeasonPass';
 import { getActiveBiome } from '../config/biomes';
 import { BiomeRenderer } from '../render/BiomeRenderer';
 import { SynthEngine } from '../audio/SynthEngine';
+import { ObjectPool } from '../utils/ObjectPool';
 
 interface Point {
   x: number;
@@ -210,6 +211,42 @@ export class Simulation {
   hackBeams: HackBeam[] = [];
   confetti: ConfettiPiece[] = [];
 
+  private projectilePool = new ObjectPool<Projectile>(
+    () => ({ team: 'A', type: 'bullet', x: 0, y: 0, vx: 0, vy: 0, damage: 0, splash: 0, color: '', life: 0 }),
+    () => {},
+    50
+  );
+
+  private particlePool = new ObjectPool<Particle>(
+    () => ({ x: 0, y: 0, vx: 0, vy: 0, size: 0, color: '', alpha: 1, decay: 0.02 }),
+    () => {},
+    100
+  );
+
+  private smokePool = new ObjectPool<SmokePlume>(
+    () => ({ x: 0, y: 0, vx: 0, vy: 0, r: 0, grow: 0, alpha: 1, decay: 0.015 }),
+    () => {},
+    50
+  );
+
+  private shockwavePool = new ObjectPool<Shockwave>(
+    () => ({ x: 0, y: 0, r: 0, maxR: 0, color: '', alpha: 1, width: 2 }),
+    () => {},
+    20
+  );
+
+  private badgePool = new ObjectPool<FloatBadge>(
+    () => ({ x: 0, y: 0, text: '', color: '', vy: -0.6, alpha: 1, decay: 0.018 }),
+    () => {},
+    20
+  );
+
+  private confettiPool = new ObjectPool<ConfettiPiece>(
+    () => ({ x: 0, y: 0, vx: 0, vy: 0, size: 4, color: '', rot: 0, vRot: 0, alpha: 1 }),
+    () => {},
+    50
+  );
+
   constructor(
     private canvas: HTMLCanvasElement,
     private stageFrame: HTMLElement,
@@ -317,11 +354,16 @@ export class Simulation {
     this.units.length = 0;
     this.jets.length = 0;
     this.bombs.length = 0;
-    this.projectiles.length = 0;
+    while (this.projectiles.length > 0) this.projectilePool.release(this.projectiles.pop()!);
     this.orbitals.length = 0;
     this.meteors.length = 0;
     this.hackBeams.length = 0;
     this.scars.length = 0;
+    while (this.particles.length > 0) this.particlePool.release(this.particles.pop()!);
+    while (this.smokePlumes.length > 0) this.smokePool.release(this.smokePlumes.pop()!);
+    while (this.shockwaves.length > 0) this.shockwavePool.release(this.shockwaves.pop()!);
+    while (this.floatBadges.length > 0) this.badgePool.release(this.floatBadges.pop()!);
+    while (this.confetti.length > 0) this.confettiPool.release(this.confetti.pop()!);
   }
 
   deployOrder(order: DeployOrder): void {
@@ -486,31 +528,53 @@ export class Simulation {
   spawnVictoryConfetti(winner: TeamId): void {
     const winObj = winner === 'A' ? state.teamA : state.teamB;
     this.spawnExplosion(this.safeCenterX, winner === 'A' ? this.baseBY : this.baseAY, winObj.color, 'nuclear');
-    this.confetti.length = 0;
+    while (this.confetti.length > 0) this.confettiPool.release(this.confetti.pop()!);
     const pal = [winObj.color, '#FBBF24', '#FFFFFF', '#FB7185'];
     for (let i = 0; i < 80; i++) {
-      this.confetti.push({
-        x: this.safeCenterX + (Math.random() - 0.5) * 60,
-        y: this.midY,
-        vx: (Math.random() - 0.5) * 11,
-        vy: (Math.random() - 0.85) * 14,
-        size: 4 + Math.random() * 4,
-        color: pal[Math.floor(Math.random() * pal.length)],
-        rot: Math.random() * Math.PI * 2,
-        vRot: (Math.random() - 0.5) * 0.25,
-        alpha: 1,
-      });
+      const c = this.confettiPool.acquire();
+      c.x = this.safeCenterX + (Math.random() - 0.5) * 60;
+      c.y = this.midY;
+      c.vx = (Math.random() - 0.5) * 11;
+      c.vy = (Math.random() - 0.85) * 14;
+      c.size = 4 + Math.random() * 4;
+      c.color = pal[Math.floor(Math.random() * pal.length)];
+      c.rot = Math.random() * Math.PI * 2;
+      c.vRot = (Math.random() - 0.5) * 0.25;
+      c.alpha = 1;
+      this.confetti.push(c);
     }
   }
 
   pushBadge(x: number, y: number, text: string, color: string, vy = -0.6): void {
-    if (this.floatBadges.length >= CAPS.badges) this.floatBadges.shift();
-    this.floatBadges.push({ x, y, text, color, vy, alpha: 1, decay: 0.018 });
+    if (this.floatBadges.length >= CAPS.badges) {
+      const old = this.floatBadges.shift();
+      if (old) this.badgePool.release(old);
+    }
+    const b = this.badgePool.acquire();
+    b.x = x;
+    b.y = y;
+    b.text = text;
+    b.color = color;
+    b.vy = vy;
+    b.alpha = 1;
+    b.decay = 0.018;
+    this.floatBadges.push(b);
   }
 
   pushShockwave(x: number, y: number, maxR: number, color: string, width = 2.2): void {
-    if (this.shockwaves.length >= CAPS.shockwaves) this.shockwaves.shift();
-    this.shockwaves.push({ x, y, r: 8, maxR, color, alpha: 0.92, width });
+    if (this.shockwaves.length >= CAPS.shockwaves) {
+      const old = this.shockwaves.shift();
+      if (old) this.shockwavePool.release(old);
+    }
+    const sw = this.shockwavePool.acquire();
+    sw.x = x;
+    sw.y = y;
+    sw.r = 8;
+    sw.maxR = maxR;
+    sw.color = color;
+    sw.alpha = 0.92;
+    sw.width = width;
+    this.shockwaves.push(sw);
   }
 
   private addScar(type: Scar['type'], x: number, y: number, r: number, angle = 0): void {
@@ -519,17 +583,20 @@ export class Simulation {
   }
 
   private emitDamageSmoke(x: number, y: number, intense: boolean): void {
-    if (this.smokePlumes.length >= CAPS.smoke) this.smokePlumes.shift();
-    this.smokePlumes.push({
-      x: x + (Math.random() - 0.5) * 14,
-      y: y + (Math.random() - 0.5) * 10,
-      vx: (Math.random() - 0.5) * 0.35,
-      vy: -0.45 - Math.random() * 0.35,
-      r: intense ? 5.5 + Math.random() * 3.5 : 3.5 + Math.random() * 2.5,
-      grow: 0.14,
-      alpha: intense ? 0.44 : 0.28,
-      decay: 0.014,
-    });
+    if (this.smokePlumes.length >= CAPS.smoke) {
+      const old = this.smokePlumes.shift();
+      if (old) this.smokePool.release(old);
+    }
+    const sm = this.smokePool.acquire();
+    sm.x = x + (Math.random() - 0.5) * 14;
+    sm.y = y + (Math.random() - 0.5) * 10;
+    sm.vx = (Math.random() - 0.5) * 0.35;
+    sm.vy = -0.45 - Math.random() * 0.35;
+    sm.r = intense ? 5.5 + Math.random() * 3.5 : 3.5 + Math.random() * 2.5;
+    sm.grow = 0.14;
+    sm.alpha = intense ? 0.44 : 0.28;
+    sm.decay = 0.014;
+    this.smokePlumes.push(sm);
   }
 
   spawnExplosion(x: number, y: number, color: string, size: 'small' | 'medium' | 'nuclear' = 'small'): void {
@@ -541,26 +608,40 @@ export class Simulation {
           : { sparks: 5, smoke: 2, spd: 2.2, ring: 0 };
 
     for (let i = 0; i < cfg.sparks; i++) {
-      if (this.particles.length >= CAPS.particles) this.particles.shift();
+      if (this.particles.length >= CAPS.particles) {
+        const old = this.particles.shift();
+        if (old) this.particlePool.release(old);
+      }
       const a = Math.random() * Math.PI * 2,
         s = (Math.random() * 0.75 + 0.25) * cfg.spd;
-      this.particles.push({
-        x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
-        size: Math.random() * (size === 'nuclear' ? 3.8 : 2.1) + 1.1,
-        color: Math.random() > 0.5 ? '#FEF08A' : Math.random() > 0.4 ? '#EF4444' : color,
-        alpha: 1, decay: 0.025 + Math.random() * 0.02,
-      });
+      const pt = this.particlePool.acquire();
+      pt.x = x;
+      pt.y = y;
+      pt.vx = Math.cos(a) * s;
+      pt.vy = Math.sin(a) * s;
+      pt.size = Math.random() * (size === 'nuclear' ? 3.8 : 2.1) + 1.1;
+      pt.color = Math.random() > 0.5 ? '#FEF08A' : Math.random() > 0.4 ? '#EF4444' : color;
+      pt.alpha = 1;
+      pt.decay = 0.025 + Math.random() * 0.02;
+      this.particles.push(pt);
     }
     for (let i = 0; i < cfg.smoke; i++) {
-      if (this.smokePlumes.length >= CAPS.smoke) this.smokePlumes.shift();
+      if (this.smokePlumes.length >= CAPS.smoke) {
+        const old = this.smokePlumes.shift();
+        if (old) this.smokePool.release(old);
+      }
       const a = Math.random() * Math.PI * 2,
         s = Math.random() * (size === 'nuclear' ? 2.2 : 1.0);
-      this.smokePlumes.push({
-        x: x + (Math.random() - 0.5) * 6, y: y + (Math.random() - 0.5) * 6,
-        vx: Math.cos(a) * s, vy: Math.sin(a) * s - 0.2,
-        r: size === 'nuclear' ? 12 : 4 + Math.random() * 4,
-        grow: size === 'nuclear' ? 0.4 : 0.16, alpha: size === 'nuclear' ? 0.6 : 0.36, decay: 0.015,
-      });
+      const sm = this.smokePool.acquire();
+      sm.x = x + (Math.random() - 0.5) * 6;
+      sm.y = y + (Math.random() - 0.5) * 6;
+      sm.vx = Math.cos(a) * s;
+      sm.vy = Math.sin(a) * s - 0.2;
+      sm.r = size === 'nuclear' ? 12 : 4 + Math.random() * 4;
+      sm.grow = size === 'nuclear' ? 0.4 : 0.16;
+      sm.alpha = size === 'nuclear' ? 0.6 : 0.36;
+      sm.decay = 0.015;
+      this.smokePlumes.push(sm);
     }
     if (cfg.ring > 0) this.pushShockwave(x, y, cfg.ring, size === 'nuclear' ? '#FFFFFF' : color, size === 'nuclear' ? 4 : 2.2);
     if (size === 'medium') this.addScar('crater', x, y, 10);
@@ -653,12 +734,18 @@ export class Simulation {
         sd.angle = Math.atan2(target.y - pos.y, target.x - pos.x);
         if (sd.cooldown <= 0 && state.roundActive) {
           sd.cooldown = 36;
-          this.projectiles.push({
-            team, type: 'turret',
-            x: pos.x + Math.cos(sd.angle) * 10, y: pos.y + Math.sin(sd.angle) * 10,
-            vx: Math.cos(sd.angle) * 8.2, vy: Math.sin(sd.angle) * 8.2,
-            damage: 10, splash: 0, color: baseObj.color, life: 28,
-          });
+          const proj = this.projectilePool.acquire();
+          proj.team = team;
+          proj.type = 'turret';
+          proj.x = pos.x + Math.cos(sd.angle) * 10;
+          proj.y = pos.y + Math.sin(sd.angle) * 10;
+          proj.vx = Math.cos(sd.angle) * 8.2;
+          proj.vy = Math.sin(sd.angle) * 8.2;
+          proj.damage = 10;
+          proj.splash = 0;
+          proj.color = baseObj.color;
+          proj.life = 28;
+          this.projectiles.push(proj);
           this.synth.playSFX('turret');
         }
       }
@@ -680,12 +767,18 @@ export class Simulation {
         baseObj.turretAngles[idx] = ang;
         if (baseObj.turretCooldowns[idx] <= 0 && state.roundActive) {
           baseObj.turretCooldowns[idx] = 34;
-          this.projectiles.push({
-            team, type: 'turret',
-            x: tx + Math.cos(ang) * 9, y: ty + Math.sin(ang) * 9,
-            vx: Math.cos(ang) * 8.2, vy: Math.sin(ang) * 8.2,
-            damage: 8, splash: 0, color: baseObj.color, life: 26,
-          });
+          const proj = this.projectilePool.acquire();
+          proj.team = team;
+          proj.type = 'turret';
+          proj.x = tx + Math.cos(ang) * 9;
+          proj.y = ty + Math.sin(ang) * 9;
+          proj.vx = Math.cos(ang) * 8.2;
+          proj.vy = Math.sin(ang) * 8.2;
+          proj.damage = 8;
+          proj.splash = 0;
+          proj.color = baseObj.color;
+          proj.life = 26;
+          this.projectiles.push(proj);
           this.synth.playSFX('turret');
         }
       }
@@ -809,12 +902,18 @@ export class Simulation {
           const col = u.team === 'A' ? state.teamA.color : state.teamB.color;
           const fAng = u.type === 'tank' ? u.turretAngle : aimAng;
           if (u.type === 'tank') u.recoil = 5;
-          this.projectiles.push({
-            team: u.team, type: u.type === 'tank' ? 'shell' : 'bullet',
-            x: u.x + Math.cos(fAng) * (u.radius + 4), y: u.y + Math.sin(fAng) * (u.radius + 4),
-            vx: Math.cos(fAng) * (u.type === 'tank' ? 6.0 : 8.5), vy: Math.sin(fAng) * (u.type === 'tank' ? 6.0 : 8.5),
-            damage: u.damage, splash: u.splash, color: col, life: 45,
-          });
+          const proj = this.projectilePool.acquire();
+          proj.team = u.team;
+          proj.type = u.type === 'tank' ? 'shell' : 'bullet';
+          proj.x = u.x + Math.cos(fAng) * (u.radius + 4);
+          proj.y = u.y + Math.sin(fAng) * (u.radius + 4);
+          proj.vx = Math.cos(fAng) * (u.type === 'tank' ? 6.0 : 8.5);
+          proj.vy = Math.sin(fAng) * (u.type === 'tank' ? 6.0 : 8.5);
+          proj.damage = u.damage;
+          proj.splash = u.splash;
+          proj.color = col;
+          proj.life = 45;
+          this.projectiles.push(proj);
           this.synth.playSFX(u.type === 'tank' ? 'cannon' : 'rifle');
         }
       }
@@ -971,16 +1070,19 @@ export class Simulation {
         this.damageBase(enemyTeam, p.damage, p.x);
         this.spawnExplosion(p.x, p.y, p.color, p.type === 'shell' ? 'medium' : 'small');
       }
-      if (hit || p.life <= 0) this.projectiles.splice(i, 1);
+      if (hit || p.life <= 0) {
+        this.projectiles.splice(i, 1);
+        this.projectilePool.release(p);
+      }
     }
 
     for (let i = this.scars.length - 1; i >= 0; i--) if ((this.scars[i].alpha -= 0.0005 * ts) <= 0.01) this.scars.splice(i, 1);
     for (let i = this.hackBeams.length - 1; i >= 0; i--) if ((this.hackBeams[i].life -= ts) <= 0) this.hackBeams.splice(i, 1);
-    for (let i = this.particles.length - 1; i >= 0; i--) { const pt = this.particles[i]; pt.x += pt.vx * ts; pt.y += pt.vy * ts; pt.vx *= 0.94; pt.vy *= 0.94; if ((pt.alpha -= pt.decay * ts) <= 0) this.particles.splice(i, 1); }
-    for (let i = this.smokePlumes.length - 1; i >= 0; i--) { const sm = this.smokePlumes[i]; sm.x += sm.vx * ts; sm.y += sm.vy * ts; sm.r += sm.grow * ts; if ((sm.alpha -= sm.decay * ts) <= 0) this.smokePlumes.splice(i, 1); }
-    for (let i = this.shockwaves.length - 1; i >= 0; i--) { const sw = this.shockwaves[i]; sw.r += (sw.maxR - sw.r) * 0.14 * ts; if ((sw.alpha -= 0.032 * ts) <= 0) this.shockwaves.splice(i, 1); }
-    for (let i = this.floatBadges.length - 1; i >= 0; i--) { const fb = this.floatBadges[i]; fb.y += fb.vy * ts; if ((fb.alpha -= fb.decay * ts) <= 0) this.floatBadges.splice(i, 1); }
-    for (let i = this.confetti.length - 1; i >= 0; i--) { const c = this.confetti[i]; c.x += c.vx * ts; c.y += c.vy * ts; c.vy += 0.22 * ts; c.rot += c.vRot * ts; if ((c.alpha -= 0.006 * ts) <= 0 || c.y > this.H) this.confetti.splice(i, 1); }
+    for (let i = this.particles.length - 1; i >= 0; i--) { const pt = this.particles[i]; pt.x += pt.vx * ts; pt.y += pt.vy * ts; pt.vx *= 0.94; pt.vy *= 0.94; if ((pt.alpha -= pt.decay * ts) <= 0) { this.particles.splice(i, 1); this.particlePool.release(pt); } }
+    for (let i = this.smokePlumes.length - 1; i >= 0; i--) { const sm = this.smokePlumes[i]; sm.x += sm.vx * ts; sm.y += sm.vy * ts; sm.r += sm.grow * ts; if ((sm.alpha -= sm.decay * ts) <= 0) { this.smokePlumes.splice(i, 1); this.smokePool.release(sm); } }
+    for (let i = this.shockwaves.length - 1; i >= 0; i--) { const sw = this.shockwaves[i]; sw.r += (sw.maxR - sw.r) * 0.14 * ts; if ((sw.alpha -= 0.032 * ts) <= 0) { this.shockwaves.splice(i, 1); this.shockwavePool.release(sw); } }
+    for (let i = this.floatBadges.length - 1; i >= 0; i--) { const fb = this.floatBadges[i]; fb.y += fb.vy * ts; if ((fb.alpha -= fb.decay * ts) <= 0) { this.floatBadges.splice(i, 1); this.badgePool.release(fb); } }
+    for (let i = this.confetti.length - 1; i >= 0; i--) { const c = this.confetti[i]; c.x += c.vx * ts; c.y += c.vy * ts; c.vy += 0.22 * ts; c.rot += c.vRot * ts; if ((c.alpha -= 0.006 * ts) <= 0 || c.y > this.H) { this.confetti.splice(i, 1); this.confettiPool.release(c); } }
   }
 
   render(): void {

@@ -165,6 +165,7 @@ export class ArenaRuntime {
     for (let i = 0; i < demo.elapsedIntervals; i++) this.tickDemoStep();
 
     if (!state.towerDecayActive) {
+      const idleSeconds = Math.max(0, (Date.now() - state.lastRealInteractionAt) / 1000);
       this.deps.elixir.update(dtSec, {
         roundActive: state.roundActive,
         roundTimeLeft: state.roundTimeLeft,
@@ -174,6 +175,7 @@ export class ArenaRuntime {
         aiDirectorEnabled: state.aiDirectorEnabled,
         unitCountByTeam: (team) => this.deps.simulation.getUnitCount(team),
         jetCountByTeam: (team) => this.deps.simulation.getJetCount(team),
+        idleSeconds,
       });
     }
     this.deps.simulation.update(dtSec * 60);
