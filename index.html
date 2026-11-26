@@ -129,11 +129,11 @@
 
       <!-- GUÍA SAFE ZONES TIKTOK -->
       <div id="safeZoneGuide" class="hidden">
-        <div class="sz-band" style="top:0;left:0;right:0;height:10%;border-bottom:1px dashed;">CONTROLES SUPERIORES · 10%</div>
-        <div class="sz-band" style="bottom:0;left:0;right:0;height:14%;border-top:1px dashed;">CHAT Y REGALOS · 14%</div>
-        <div class="sz-band" style="top:10%;bottom:14%;right:0;width:12%;border-left:1px dashed;writing-mode:vertical-rl;">ICONOS TIKTOK · 12%</div>
-        <div class="sz-band" style="top:10%;bottom:14%;left:0;width:3%;border-right:1px dashed;writing-mode:vertical-rl;">MARGEN · 3%</div>
-        <div style="position:absolute;top:10%;bottom:14%;left:3%;right:12%;border:1px solid rgba(52,211,153,0.85);border-radius:8px;"></div>
+        <div class="sz-band sz-top">CONTROLES SUPERIORES · 10.4%</div>
+        <div class="sz-band sz-bottom">CHAT Y REGALOS · 14%</div>
+        <div class="sz-band sz-right">ICONOS TIKTOK · 13%</div>
+        <div class="sz-band sz-left">MARGEN · 3%</div>
+        <div class="sz-frame"></div>
       </div>
 
       <!-- ZONA SEGURA DE TIKTOK LIVE -->
@@ -476,7 +476,7 @@
           <div class="grid-3">
             <button id="btnTestTapA" class="btn btn-rose" style="font-size:9.5px;padding:6px 4px;">❤️ +15 Tap Norte</button>
             <button id="btnTestTapB" class="btn btn-rose" style="font-size:9.5px;padding:6px 4px;">❤️ +15 Tap Sur</button>
-            <button onclick="activateFrenzy()" class="btn btn-amber" style="font-size:9.5px;padding:6px 4px;">⚡ Frenesí x2</button>
+            <button id="btnTestFrenzy" class="btn btn-amber" style="font-size:9.5px;padding:6px 4px;">⚡ Frenesí x2</button>
           </div>
         </div>
 
@@ -539,23 +539,23 @@
         <div class="section-card">
           <div class="section-title"><span>Pruebas Manuales (Atajos TikFinity)</span></div>
           <div class="grid-2">
-            <button onclick="manualTestGift('A', 1)" class="btn">[1] A: Soldados</button>
-            <button onclick="manualTestGift('B', 1)" class="btn">[7] B: Soldados</button>
-            <button onclick="manualTestGift('A', 2)" class="btn">[2] A: Tanque</button>
-            <button onclick="manualTestGift('B', 2)" class="btn">[8] B: Tanque</button>
-            <button onclick="manualTestGift('A', 3)" class="btn">[3] A: Jet Furtivo</button>
-            <button onclick="manualTestGift('B', 3)" class="btn">[9] B: Jet Furtivo</button>
-            <button onclick="manualTestGift('A', 4)" class="btn btn-amber">[4] A: Nuclear (3s)</button>
-            <button onclick="manualTestGift('B', 4)" class="btn btn-amber">[0] B: Nuclear (3s)</button>
-            <button onclick="manualTestGift('A', 5)" class="btn">[5] A: Escudo +15%</button>
-            <button onclick="manualTestGift('B', 5)" class="btn">[6] B: Escudo +15%</button>
-            <button onclick="manualTestGift('A', 6)" class="btn btn-cyan">[Q] A: EMP (10s)</button>
-            <button onclick="manualTestGift('B', 6)" class="btn btn-cyan">[E] B: EMP (10s)</button>
-            <button onclick="manualTestGift('A', 7)" class="btn btn-purple">[Z] A: Cyber Hack</button>
-            <button onclick="manualTestGift('B', 7)" class="btn btn-purple">[X] B: Cyber Hack</button>
-            <button onclick="simulateFollowEvent()" class="btn btn-emerald">[F] ➕ Follow</button>
-            <button onclick="simulateShareEvent()" class="btn btn-primary">[G] ✈️ Share (Jet)</button>
-            <button onclick="triggerMeteorShower('Manual')" class="btn btn-danger" style="grid-column:span 2;">[B] ☄️ Lluvia de Meteoritos</button>
+            <button data-test-gift-team="A" data-test-gift-tier="1" class="btn">[1] A: Soldados</button>
+            <button data-test-gift-team="B" data-test-gift-tier="1" class="btn">[7] B: Soldados</button>
+            <button data-test-gift-team="A" data-test-gift-tier="2" class="btn">[2] A: Tanque</button>
+            <button data-test-gift-team="B" data-test-gift-tier="2" class="btn">[8] B: Tanque</button>
+            <button data-test-gift-team="A" data-test-gift-tier="3" class="btn">[3] A: Jet Furtivo</button>
+            <button data-test-gift-team="B" data-test-gift-tier="3" class="btn">[9] B: Jet Furtivo</button>
+            <button data-test-gift-team="A" data-test-gift-tier="4" class="btn btn-amber">[4] A: Nuclear (3s)</button>
+            <button data-test-gift-team="B" data-test-gift-tier="4" class="btn btn-amber">[0] B: Nuclear (3s)</button>
+            <button data-test-gift-team="A" data-test-gift-tier="5" class="btn">[5] A: Escudo +15%</button>
+            <button data-test-gift-team="B" data-test-gift-tier="5" class="btn">[6] B: Escudo +15%</button>
+            <button data-test-gift-team="A" data-test-gift-tier="6" class="btn btn-cyan">[Q] A: EMP (10s)</button>
+            <button data-test-gift-team="B" data-test-gift-tier="6" class="btn btn-cyan">[E] B: EMP (10s)</button>
+            <button data-test-gift-team="A" data-test-gift-tier="7" class="btn btn-purple">[Z] A: Cyber Hack</button>
+            <button data-test-gift-team="B" data-test-gift-tier="7" class="btn btn-purple">[X] B: Cyber Hack</button>
+            <button id="btnTestFollow" class="btn btn-emerald">[F] ➕ Follow</button>
+            <button id="btnTestShare" class="btn btn-primary">[G] ✈️ Share (Jet)</button>
+            <button id="btnTestMeteor" class="btn btn-danger" style="grid-column:span 2;">[B] ☄️ Lluvia de Meteoritos</button>
           </div>
         </div>
       </div>

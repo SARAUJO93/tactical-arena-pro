@@ -36,12 +36,17 @@ export interface SettingsPanelDeps {
   renderGiftLegend: () => void;
   updatePanicAlerts: () => void;
   updateFrenzyGaugeUI: () => void;
+  activateFrenzy: () => void;
   activateSuddenDeath: () => void;
   resetRound: () => void;
   resetSession: () => void;
   startNewTournament: () => void;
   startWorldCup: () => void;
   simulateTap: (team: TeamId) => void;
+  manualTestGift: (team: TeamId, tier: number) => void;
+  simulateFollow: () => void;
+  simulateShare: () => void;
+  triggerMeteorShower: (reason?: string) => void;
   externalObservability: ExternalObservability;
 }
 
@@ -253,7 +258,7 @@ export class SettingsPanel {
       : '64 → 32 → 16 → 8 → 4 → 2 → campeón';
 
     const rosterLocked = cup.status === 'in_progress';
-    for (const id of ['btnPresetWorld', 'btnPresetLigaMX', 'btnPresetMexicoCities', 'btnAddRoster', 'inAddFlag', 'inAddName', 'inAddKey']) {
+    for (const id of ['btnAddRoster', 'inAddFlag', 'inAddName', 'inAddKey']) {
       ($(id) as HTMLButtonElement | HTMLInputElement).disabled = rosterLocked;
     }
   }
@@ -625,6 +630,8 @@ export class SettingsPanel {
   /* ===================== ROSTER / GIFTS ===================== */
 
   private applyRosterPreset(list: TeamPreset[]): void {
+    state.worldCup = createEmptyWorldCup();
+    state.tournamentMode = true;
     state.roster = structuredClone(list);
     state.rosterCursor = 2;
     state.teamA = makeBaseState(state.roster[0], true);
@@ -794,7 +801,7 @@ export class SettingsPanel {
       }
     });
 
-    // Tap Tap
+    // Tap Tap y Pruebas Manuales
     $('sliderPersonalTap').addEventListener('input', (e) => {
       state.personalTapThreshold = Number((e.target as HTMLInputElement).value);
       this.syncControlButtons();
@@ -812,6 +819,17 @@ export class SettingsPanel {
     });
     $('btnTestTapA').addEventListener('click', () => this.deps.simulateTap('A'));
     $('btnTestTapB').addEventListener('click', () => this.deps.simulateTap('B'));
+    $('btnTestFrenzy').addEventListener('click', () => this.deps.activateFrenzy());
+    $('btnTestFollow').addEventListener('click', () => this.deps.simulateFollow());
+    $('btnTestShare').addEventListener('click', () => this.deps.simulateShare());
+    $('btnTestMeteor').addEventListener('click', () => this.deps.triggerMeteorShower('Manual'));
+    document.querySelectorAll<HTMLButtonElement>('[data-test-gift-team]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const team = btn.dataset.testGiftTeam === 'B' ? 'B' : 'A';
+        const tier = Number(btn.dataset.testGiftTier) || 1;
+        this.deps.manualTestGift(team, tier);
+      });
+    });
 
     // TikFinity WebSocket
     $('btnWsConnect').addEventListener('click', () => {

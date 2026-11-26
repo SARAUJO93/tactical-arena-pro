@@ -15,6 +15,10 @@
   --surface-shadow: 0 8px 22px rgba(2, 6, 23, 0.3);
   --surface-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   --ease-out: cubic-bezier(0.2, 0.75, 0.25, 1);
+  --sz-top: 10.4%;
+  --sz-bottom: 14%;
+  --sz-left: 3%;
+  --sz-right: 13%;
 }
 
 * {
@@ -234,9 +238,9 @@ html, body {
 
 #notificationDock {
   position: absolute;
-  top: 10.4%;
-  left: 3%;
-  right: 13%;
+  top: var(--sz-top);
+  left: var(--sz-left);
+  right: var(--sz-right);
   height: 24px;
   z-index: 27;
   display: flex;
@@ -282,13 +286,26 @@ html, body {
   font-size: 8px; font-weight: 800; letter-spacing: 0.12em;
   text-transform: uppercase; color: #FECACA; text-align: center;
 }
+.sz-top { top: 0; left: 0; right: 0; height: var(--sz-top); border-bottom: 1px dashed; }
+.sz-bottom { bottom: 0; left: 0; right: 0; height: var(--sz-bottom); border-top: 1px dashed; }
+.sz-right { top: var(--sz-top); bottom: var(--sz-bottom); right: 0; width: var(--sz-right); border-left: 1px dashed; writing-mode: vertical-rl; }
+.sz-left { top: var(--sz-top); bottom: var(--sz-bottom); left: 0; width: var(--sz-left); border-right: 1px dashed; writing-mode: vertical-rl; }
+.sz-frame {
+  position: absolute;
+  top: var(--sz-top);
+  bottom: var(--sz-bottom);
+  left: var(--sz-left);
+  right: var(--sz-right);
+  border: 1px solid rgba(52, 211, 153, 0.85);
+  border-radius: 8px;
+}
 
 #safeZoneHUD {
   position: absolute;
-  top: 10.4%;
-  bottom: 14%;
-  left: 3%;
-  right: 13%;
+  top: var(--sz-top);
+  bottom: var(--sz-bottom);
+  left: var(--sz-left);
+  right: var(--sz-right);
   display: flex;
   flex-direction: column;
   justify-content: space-between;

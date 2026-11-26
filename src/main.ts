@@ -4,7 +4,7 @@ import {
   loadPersistentState, makeBaseState, makeSideDefenseState, MAX_BASE_HP,
   prepareNewTournament,
   prepareWorldCup,
-  savePersistentState, state, TeamPreset,
+  savePersistentState, state, STORAGE_KEY, TeamPreset,
   // Fase A
   beginRound, finalizeRound, resetIfNeeded, resetSession as resetSessionState,
   scoreMvp, ensurePlayerRecord, PlayerRecord,
@@ -1233,7 +1233,13 @@ function resetSession(): void {
 }
 
 function startNewTournament(): void {
-  startWorldCup();
+  prepareNewTournament();
+  nextBiomeOverride = null;
+  settings.renderRosterChips();
+  applyTeamUI();
+  resetRound();
+  logWsEvent(`Torneo King of the Hill iniciado · ${state.teamA.name} vs ${state.teamB.name}`);
+  savePersistentState();
 }
 
 function startWorldCup(): void {
@@ -1303,15 +1309,10 @@ const simulateFollow = () => bus.emit('game:follow', { user: '@FanDemo', avatarU
 const simulateShare = () => bus.emit('game:share', { user: '@ShareDemo', avatarUrl: '', isDemo: true });
 const triggerMeteorShower = (reason = 'Manual') => bus.emit('action:instant', { team: 'A', kind: 'METEOR_SHOWER', user: reason, avatarUrl: '' });
 
+// Hooks expuestos para pruebas E2E de Playwright y depuración en consola
 const w = window as unknown as Record<string, unknown>;
-w.manualTestGift = manualTestGift;
-w.activateFrenzy = activateFrenzy;
 w.triggerVictory = triggerVictory;
-w.simulateFollowEvent = simulateFollow;
-w.simulateShareEvent = simulateShare;
-w.triggerMeteorShower = triggerMeteorShower;
 w.startWorldCup = startWorldCup;
-void prepareNewTournament;
 
 const settings = new SettingsPanel({
   synth,
@@ -1320,12 +1321,17 @@ const settings = new SettingsPanel({
   renderGiftLegend,
   updatePanicAlerts,
   updateFrenzyGaugeUI,
+  activateFrenzy,
   activateSuddenDeath,
   resetRound,
   resetSession,
   startNewTournament,
   startWorldCup,
   simulateTap,
+  manualTestGift,
+  simulateFollow,
+  simulateShare,
+  triggerMeteorShower,
   externalObservability,
 });
 
@@ -1364,15 +1370,16 @@ bus.on('tikfinity:status', ({ status, detail }) => {
   }
 });
 
-// Arranque siempre en esquema Copa Mundial de 64 selecciones
+// Arranque: Copa Mundial de 64 por defecto en sesión nueva, respetando torneos guardados
 window.addEventListener('pointerdown', () => synth.unlock(), { passive: true });
+const hasSavedState = Boolean(localStorage.getItem(STORAGE_KEY));
 loadPersistentState();
 biomeRotation.restore(state.currentRoundBiome, state.biomeRotationRemaining);
 state.biomeRotationRemaining = biomeRotation.getRemainingIds();
 setActiveBiome(state.currentRoundBiome);
 externalObservability.start();
 resetIfNeeded();
-if (state.worldCup.status !== 'in_progress') {
+if ((!hasSavedState && state.worldCup.status !== 'in_progress') || state.worldCup.status === 'completed') {
   prepareWorldCup();
 }
 const initialWeekly = getWeeklyEventForDate();
@@ -1388,7 +1395,7 @@ synth.init();
 synth.applyMusicMode();
 announceActiveBiome();
 savePersistentState();
-logWsEvent(`Tactical Arena V3.2.0 · Copa de 64 activa · ${initialWeekly.title}.`);
+logWsEvent(`Tactical Arena V3.2.0 · ${state.worldCup.status === 'in_progress' ? 'Copa de 64 activa' : 'Torneo activo'} · ${initialWeekly.title}.`);
 void registerOfflineCache();
 installErrorMonitoring();
 installBrowserLifecycle({

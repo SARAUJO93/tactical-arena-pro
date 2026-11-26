@@ -139,7 +139,7 @@ test('persiste cambios de configuración después de recargar', async ({ page })
 
 test('puede finalizar una ronda, mostrar coronas y luego la pantalla de 20s', async ({ page }) => {
   await page.clock.install();
-  await page.clock.pauseAt(new Date());
+  await page.clock.pauseAt(Date.now() + 5000);
   await page.evaluate(() => {
     const arena = window as unknown as { triggerVictory?: (team: 'A' | 'B') => void };
     arena.triggerVictory?.('A');
@@ -217,7 +217,7 @@ test('muestra reconexion y recuperacion cuando TikFinity cae', async ({ page }) 
 });
 
 test('mantiene desactivada la observabilidad externa por defecto', async ({ page }) => {
-  await page.route('[https://collector.example.com/events](https://collector.example.com/events)', async (route) => {
+  await page.route('https://collector.example.com/events', async (route) => {
     await route.fulfill({
       status: 202,
       contentType: 'application/json',
@@ -228,7 +228,7 @@ test('mantiene desactivada la observabilidad externa por defecto', async ({ page
   await expect(page.locator('#btnExternalTelemetry')).toContainText(/OFF/);
   await expect(page.locator('#inExternalTelemetryUrl')).toBeVisible();
 
-  await page.locator('#inExternalTelemetryUrl').fill('[https://collector.example.com/events](https://collector.example.com/events)');
+  await page.locator('#inExternalTelemetryUrl').fill('https://collector.example.com/events');
   await page.locator('#btnExternalTelemetry').click();
   await expect(page.locator('#btnExternalTelemetry')).toContainText(/ON/);
   await expect(page.locator('#telExternalStatus')).toContainText(/Enviado|Estado externo:/);

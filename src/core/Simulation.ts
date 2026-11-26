@@ -7,6 +7,7 @@ import { getActiveBiome } from '../config/biomes';
 import { BiomeRenderer } from '../render/BiomeRenderer';
 import { SynthEngine } from '../audio/SynthEngine';
 import { ObjectPool } from '../utils/ObjectPool';
+import { SpatialGrid } from '../utils/SpatialGrid';
 
 interface Point {
   x: number;
@@ -163,6 +164,7 @@ interface ConfettiPiece {
 }
 
 const CAPS = { particles: 220, smoke: 80, shockwaves: 24, scars: 80, badges: 40 };
+const MAX_UNIT_COLLISION_RADIUS = 14;
 
 export interface ResilienceStats {
   unitCount: number;
@@ -210,6 +212,10 @@ export class Simulation {
   meteors: Meteor[] = [];
   hackBeams: HackBeam[] = [];
   confetti: ConfettiPiece[] = [];
+
+  private unitGrid = new SpatialGrid<Unit>(64, DESIGN_W, 800);
+  private nearbyUnits: Unit[] = [];
+  private splashUnits: Unit[] = [];
 
   private projectilePool = new ObjectPool<Projectile>(
     () => ({ team: 'A', type: 'bullet', x: 0, y: 0, vx: 0, vy: 0, damage: 0, splash: 0, color: '', life: 0 }),
@@ -265,6 +271,14 @@ export class Simulation {
     this.updateGeometry();
   }
 
+  private rebuildUnitGrid(): void {
+    this.unitGrid.clear();
+    for (let i = 0; i < this.units.length; i++) {
+      const u = this.units[i];
+      if (u.hp > 0) this.unitGrid.insert(u);
+    }
+  }
+
   getBridgeX(lane: 0 | 1): number {
     const laneW = Math.max(120, this.safeRight - this.safeLeft);
     return this.safeLeft + laneW * (lane === 0 ? 0.24 : 0.76);
@@ -293,6 +307,8 @@ export class Simulation {
 
     this.W = DESIGN_W;
     this.H = this.stage.offsetHeight || 693;
+    this.unitGrid.resize(this.W, this.H);
+
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.res = Math.min(dpr * this.stageScale, 3);
 
@@ -352,6 +368,9 @@ export class Simulation {
 
   clearEntities(): void {
     this.units.length = 0;
+    this.unitGrid.clear();
+    this.nearbyUnits.length = 0;
+    this.splashUnits.length = 0;
     this.jets.length = 0;
     this.bombs.length = 0;
     while (this.projectiles.length > 0) this.projectilePool.release(this.projectiles.pop()!);
@@ -712,8 +731,10 @@ export class Simulation {
 
     if (baseObj.empTimer > 0) return;
     const enemyTeam: TeamId = team === 'A' ? 'B' : 'A';
-    const mainRangeSq = 112 * 112;
-    const sideRangeSq = 126 * 126;
+    const mainRange = 112;
+    const mainRangeSq = mainRange * mainRange;
+    const sideRange = 126;
+    const sideRangeSq = sideRange * sideRange;
 
     ([0, 1] as const).forEach((lane) => {
       const sd = baseObj.sideDefenses[lane];
@@ -724,8 +745,9 @@ export class Simulation {
         this.emitDamageSmoke(pos.x, pos.y, false);
       }
       let target: Unit | null = null, minD2 = sideRangeSq;
-      for (let i = 0; i < this.units.length; i++) {
-        const u = this.units[i];
+      const nearby = this.unitGrid.query(pos.x, pos.y, sideRange, this.nearbyUnits);
+      for (let i = 0; i < nearby.length; i++) {
+        const u = nearby[i];
         if (u.team !== enemyTeam || u.hp <= 0) continue;
         const d2 = distSq(u.x, u.y, pos.x, pos.y);
         if (d2 < minD2) { minD2 = d2; target = u; }
@@ -756,8 +778,9 @@ export class Simulation {
     offsets.forEach((off, idx) => {
       const tx = this.safeCenterX + off.dx, ty = by + off.dy;
       let target: Unit | null = null, minD2 = mainRangeSq;
-      for (let i = 0; i < this.units.length; i++) {
-        const u = this.units[i];
+      const nearby = this.unitGrid.query(tx, ty, mainRange, this.nearbyUnits);
+      for (let i = 0; i < nearby.length; i++) {
+        const u = nearby[i];
         if (u.team !== enemyTeam || u.hp <= 0) continue;
         const d2 = distSq(u.x, u.y, tx, ty);
         if (d2 < minD2) { minD2 = d2; target = u; }
@@ -798,6 +821,7 @@ export class Simulation {
     const speedMult = (state.suddenDeathActive ? 1.22 : 1.0) * ts;
     const dmgMult = state.suddenDeathActive ? 2.0 : 1.0;
 
+    this.rebuildUnitGrid();
     this.updateBaseDefenses('A', state.teamA, this.baseAY, ts);
     this.updateBaseDefenses('B', state.teamB, this.baseBY, ts);
 
@@ -839,14 +863,16 @@ export class Simulation {
       }
 
       const distStructSq = distSq(u.x, u.y, structX, structY);
-      const aggroSq = (u.range * 1.45) * (u.range * 1.45);
+      const aggroRadius = u.range * 1.45;
+      const aggroSq = aggroRadius * aggroRadius;
       let nearest: Unit | null = null, minD2 = Math.min(aggroSq, distStructSq);
 
       let sepX = 0, sepY = 0;
-      for (let j = 0; j < this.units.length; j++) {
-        if (i === j) continue;
-        const o = this.units[j];
-        if (o.hp <= 0) continue;
+      const queryRadius = Math.max(aggroRadius, u.radius + MAX_UNIT_COLLISION_RADIUS + 3);
+      const nearby = this.unitGrid.query(u.x, u.y, queryRadius, this.nearbyUnits);
+      for (let j = 0; j < nearby.length; j++) {
+        const o = nearby[j];
+        if (o === u || o.hp <= 0) continue;
         const dx = u.x - o.x, dy = u.y - o.y, d2 = dx * dx + dy * dy;
         if (o.team !== u.team) {
           if (d2 < minD2) { minD2 = d2; nearest = o; }
@@ -921,6 +947,9 @@ export class Simulation {
       u.x = Math.max(this.safeLeft + 10, Math.min(this.safeRight - 10, u.x));
     }
 
+    // Reindexar tras mover unidades para consultas exactas de bombas, meteoros y proyectiles
+    this.rebuildUnitGrid();
+
     for (let i = this.jets.length - 1; i >= 0; i--) {
       const j = this.jets[i];
       const enemyTeam: TeamId = j.team === 'A' ? 'B' : 'A';
@@ -990,7 +1019,11 @@ export class Simulation {
       if (b.progress >= 1) {
         const enemyTeam: TeamId = b.team === 'A' ? 'B' : 'A';
         this.spawnExplosion(b.tx, b.ty, b.color, 'medium'); this.synth.playSFX('bomb_impact'); state.shake = Math.max(state.shake, 3.5);
-        for (const u of this.units) if (u.team === enemyTeam && distSq(u.x, u.y, b.tx, b.ty) < 58 * 58) u.hp -= 70 * dmgMult;
+        const nearby = this.unitGrid.query(b.tx, b.ty, 58, this.nearbyUnits);
+        for (let k = 0; k < nearby.length; k++) {
+          const u = nearby[k];
+          if (u.team === enemyTeam && distSq(u.x, u.y, b.tx, b.ty) < 58 * 58) u.hp -= 70 * dmgMult;
+        }
         ([0, 1] as const).forEach((lane) => {
           const tp = this.getSideTowerPos(enemyTeam, lane);
           if (distSq(tp.x, tp.y, b.tx, b.ty) < 58 * 58) this.damageSideTower(enemyTeam, lane, 115);
@@ -1005,7 +1038,11 @@ export class Simulation {
       const m = this.meteors[i]; m.progress += 0.055 * ts;
       if (m.progress >= 1) {
         this.spawnExplosion(m.tx, m.ty, '#F97316', 'medium'); this.synth.playSFX('meteor'); state.shake = Math.max(state.shake, 5.2);
-        for (const u of this.units) if (distSq(u.x, u.y, m.tx, m.ty) < 52 * 52) u.hp -= 75 * dmgMult;
+        const nearby = this.unitGrid.query(m.tx, m.ty, 52, this.nearbyUnits);
+        for (let k = 0; k < nearby.length; k++) {
+          const u = nearby[k];
+          if (distSq(u.x, u.y, m.tx, m.ty) < 52 * 52) u.hp -= 75 * dmgMult;
+        }
         this.meteors.splice(i, 1);
       }
     }
@@ -1034,15 +1071,20 @@ export class Simulation {
       const eBase = enemyTeam === 'A' ? state.teamA : state.teamB;
       const eBaseY = enemyTeam === 'A' ? this.baseAY : this.baseBY;
 
-      for (let j = 0; j < this.units.length; j++) {
-        const u = this.units[j];
+      const nearby = this.unitGrid.query(p.x, p.y, MAX_UNIT_COLLISION_RADIUS + 6, this.nearbyUnits);
+      for (let j = 0; j < nearby.length; j++) {
+        const u = nearby[j];
         if (u.team !== enemyTeam || u.hp <= 0) continue;
         const r = u.radius + 5;
         if (distSq(u.x, u.y, p.x, p.y) < r * r) {
           hit = true;
           if (p.splash > 0) {
             const s2 = p.splash * p.splash;
-            for (const t of this.units) if (t.team === enemyTeam && distSq(t.x, t.y, p.x, p.y) <= s2) t.hp -= p.damage * dmgMult;
+            const splashTargets = this.unitGrid.query(p.x, p.y, p.splash, this.splashUnits);
+            for (let k = 0; k < splashTargets.length; k++) {
+              const t = splashTargets[k];
+              if (t.team === enemyTeam && distSq(t.x, t.y, p.x, p.y) <= s2) t.hp -= p.damage * dmgMult;
+            }
             this.spawnExplosion(p.x, p.y, p.color, 'medium'); state.shake = Math.max(state.shake, 2.2);
           } else {
             u.hp -= p.damage * dmgMult;
