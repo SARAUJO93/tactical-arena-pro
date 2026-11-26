@@ -1021,7 +1021,7 @@ function triggerVictory(
 
   const crownScoreA = getCrownScore(state.teamA);
   const crownScoreB = getCrownScore(state.teamB);
-  const winnerCrowns = Math.max(1, Math.min(3, winner === 'A' ? crownScoreA : crownScoreB));
+  const winnerCrowns = Math.max(1, Math.min(3, winner === 'A' ? crownScoreB : crownScoreA));
   const towerHealthA = Math.round(getDefenseHealthPercent(state.teamA));
   const towerHealthB = Math.round(getDefenseHealthPercent(state.teamB));
   const decisionLabel = finishReason === 'crowns'
@@ -1073,6 +1073,7 @@ function triggerVictory(
   if (victoryOverlayTimer) clearTimeout(victoryOverlayTimer);
   if (restartTimer) clearInterval(restartTimer);
   victoryOverlayTimer = setTimeout(() => {
+    $('hud').classList.add('victory-active');
     const ov = $('victoryOverlay');
     ov.classList.remove('hidden', 'show');
     void ov.offsetWidth;
@@ -1147,6 +1148,7 @@ function resetRound(): void {
   sim.clearEntities();
   elixir.resetRound();
 
+  $('hud').classList.remove('victory-active');
   $('suddenDeathVignette').classList.remove('active');
   $('frenzyVignette').classList.remove('active');
   $('victoryOverlay').classList.remove('show');
