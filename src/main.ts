@@ -285,12 +285,12 @@ function updateOnboardingTicker(): void {
   const tips = [
     `${weekly.badge} ${weekly.title}`,
     `❤️ ${state.personalTapThreshold} Taps = Tropas`,
-    `⚔️ ${goalLikes} Likes = Asalto / Escudo 3s`,
-    '🏆 Copa de 64: cada título reinicia un nuevo cuadro',
-    '🔥 Vuelve cada día para subir tu racha y ganar XP gratis',
+    `⚔️ ${goalLikes} Likes = Asalto / Escudo`,
+    '🏆 Copa de 64 · Ciclo continuo',
+    '🔥 Vuelve diario = +XP al Pase',
     '🎟️ Sube tu Pase Gratis con Taps',
-    '🧭 Participa en 3 biomas y desbloquea el marco Explorador',
-    '🤝 Los taps sin equipo apoyan al bando que va perdiendo',
+    '🧭 3 biomas = Marco Explorador',
+    '🤝 Taps libres = Al de menos HP',
   ];
   const tip = tips[tickerIdx % tips.length];
   tickerIdx++;
