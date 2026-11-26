@@ -23,6 +23,7 @@ import { BiomeTheme, getActiveBiome, setActiveBiome } from './config/biomes';
 import { renderTeamFlagHtml } from './ui/FlagRenderer';
 import { NotificationDock } from './ui/NotificationDock';
 import { consumeTapRewards } from './utils/tapRewards';
+import { resolveContrastingTeamColors } from './utils/teamColors';
 import { ArenaRuntime } from './app/ArenaRuntime';
 import { installErrorMonitoring } from './monitoring/ErrorMonitor';
 import { ExternalObservability } from './monitoring/ExternalObservability';
@@ -1246,6 +1247,14 @@ function startWorldCup(): void {
 }
 
 function applyTeamUI(): void {
+  const { colorA, colorB } = resolveContrastingTeamColors(
+    state.teamA.color,
+    state.teamB.color,
+    state.teamB.key
+  );
+  state.teamA.color = colorA;
+  state.teamB.color = colorB;
+
   document.documentElement.style.setProperty('--team-a', state.teamA.color);
   document.documentElement.style.setProperty('--team-b', state.teamB.color);
   $('scoreFlagA').innerHTML = renderTeamFlagHtml(state.teamA.key, state.teamA.flag, 'inline');
