@@ -85,16 +85,16 @@
 
       <!-- BARRA SUPERIOR DE UTILIDADES -->
       <div id="topUtilBar">
-        <div id="wsPillTop" class="glass-soft util-btn" title="Estado WebSocket TikFinity (H)">
+        <div id="wsPillTop" class="glass-soft util-btn" title="Estado WebSocket TikFinity (H)" aria-label="Estado WebSocket TikFinity">
           <span id="wsTopDot" style="width:6px;height:6px;border-radius:50%;background:#64748B;"></span>
           <span id="wsTopText">Offline</span>
         </div>
         <div class="util-group">
-          <button id="btnQuickDemo" class="glass-soft util-btn" title="Modo Demo (D)">
+          <button id="btnQuickDemo" class="glass-soft util-btn" title="Modo Demo (D)" aria-label="Alternar modo Demo">
             <span id="demoDotTop" style="width:6px;height:6px;border-radius:50%;background:#34D399;"></span>
             <span style="color:#FDE68A;">DEMO</span>
           </button>
-          <button id="btnQuickSafe" class="glass-soft util-btn" style="color:#FDA4AF;" title="Safe Zones TikTok (S)">SAFE</button>
+          <button id="btnQuickSafe" class="glass-soft util-btn" style="color:#FDA4AF;" title="Safe Zones TikTok (S)" aria-label="Alternar guía de Safe Zones">SAFE</button>
           <button id="btnOpenTelemetry" class="glass-soft util-btn util-icon" title="Telemetría (I)" aria-label="Abrir telemetría">
             <svg class="ui-icon" aria-hidden="true"><use href="#icon-telemetry"></use></svg>
           </button>
@@ -146,7 +146,7 @@
             <div class="glass score-pill tabular">
               <span id="scoreFlagA">🇲🇽</span>
               <span id="winsA">0</span>
-              <span style="color:#64748B;font-size:8.5px;">-</span>
+              <span style="color:#94A3B8;font-size:8.5px;">-</span>
               <span id="winsB">0</span>
               <span id="scoreFlagB">🇦🇷</span>
             </div>
@@ -191,7 +191,7 @@
               </div>
               <div class="tabular" style="font-size:10px;font-weight:800;display:flex;align-items:center;gap:4px;">
                 <span id="hpPctA" style="color:var(--team-a);font-size:9px;">100%</span>
-                <span style="color:#475569;">·</span>
+                <span style="color:#64748B;">·</span>
                 <span id="hpTextA">3000</span>
               </div>
             </div>
@@ -255,7 +255,7 @@
               </div>
               <div class="tabular" style="font-size:10px;font-weight:800;display:flex;align-items:center;gap:4px;">
                 <span id="hpPctB" style="color:var(--team-b);font-size:9px;">100%</span>
-                <span style="color:#475569;">·</span>
+                <span style="color:#64748B;">·</span>
                 <span id="hpTextB">3000</span>
               </div>
             </div>
@@ -314,7 +314,7 @@
       </div>
 
       <!-- CINEMÁTICA ÉPICA DE VICTORIA -->
-      <div id="victoryOverlay" class="hidden" aria-live="polite">
+      <div id="victoryOverlay" class="hidden" role="dialog" aria-modal="true" aria-label="Resultado de batalla" aria-live="polite">
         <div class="vic-rays"></div>
         <div class="vic-spark vic-spark-a">✦</div>
         <div class="vic-spark vic-spark-b">✧</div>
@@ -351,11 +351,11 @@
       </div>
 
       <!-- PANEL DE AJUSTES -->
-      <div id="controlPanel" class="modal-overlay hidden">
+      <div id="controlPanel" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="controlPanelTitle">
         <div class="modal-header">
           <div>
-            <div style="font-size:13px;font-weight:900;letter-spacing:0.05em;">TACTICAL ARENA V3.2.0</div>
-            <div style="font-size:9px;color:#94A3B8;margin-top:2px;">Elixir, Biomas &amp; Audio Épico · H: Ajustes · I: Telemetría · L: Liga · S: Safe · T/Y: Tap</div>
+            <div id="controlPanelTitle" style="font-size:13px;font-weight:900;letter-spacing:0.05em;">TACTICAL ARENA V3.2.0</div>
+            <div style="font-size:9px;color:#B6C3D4;margin-top:2px;">Elixir, Biomas &amp; Audio Épico · H: Ajustes · I: Telemetría · L: Liga · S: Safe · Esc: Cerrar</div>
           </div>
           <button id="btnClosePanel" class="btn">Cerrar ✕</button>
         </div>
@@ -381,11 +381,12 @@
             <span style="color:#67E8F9;">Observabilidad externa opcional</span>
             <button id="btnExternalTelemetry" class="btn">📡 Externa: OFF</button>
           </div>
-          <div id="telExternalStatus" style="margin:5px 0;font-size:9px;color:#94A3B8;">Estado externo: OFF</div>
+          <div id="telExternalStatus" style="margin:5px 0;font-size:9px;color:#B6C3D4;">Estado externo: OFF</div>
           <input id="inExternalTelemetryUrl" class="inp" type="url"
+            aria-label="URL de observabilidad externa"
             placeholder="https://collector.example.com/tactical-arena"
             style="width:100%;font-family:monospace;" />
-          <div style="margin-top:5px;font-size:8.5px;color:#94A3B8;">
+          <div style="margin-top:5px;font-size:8.5px;color:#B6C3D4;">
             Solo métricas agregadas de calidad. No se envían nombres, chat, regalos ni URLs personales.
           </div>
         </div>
@@ -395,15 +396,15 @@
             <span style="color:#A78BFA;">🎵 Música de Fondo (0% Copyright + Ducking)</span>
             <span id="bpmBadge" class="tabular" style="color:#34D399;">128 BPM</span>
           </div>
-          <select id="selMusicMode" class="sel" style="margin-bottom:8px;">
-            <option value="starfox">🎵 Épica por Bioma (4 Pistas Originales)</option>
+          <select id="selMusicMode" class="sel" aria-label="Modo de música de fondo" style="margin-bottom:8px;">
+            <option value="starfox">🎵 Épica por Bioma (10 Pistas Originales)</option>
             <option value="pulse">⚡ Pulso Táctico (Sin Melodía)</option>
             <option value="mp3">📁 MP3 Propio</option>
             <option value="off">🔇 Silencio</option>
           </select>
           <div style="display:flex;gap:6px;align-items:center;margin-bottom:7px;">
             <span style="font-size:9.5px;color:#CBD5E1;white-space:nowrap;">Volumen Música</span>
-            <input id="sliderMusicVol" type="range" min="5" max="100" step="5" value="35" style="flex:1;" />
+            <input id="sliderMusicVol" type="range" min="5" max="100" step="5" value="35" aria-label="Volumen de música" style="flex:1;" />
             <strong id="lblMusicVol" class="tabular" style="font-size:9.5px;width:32px;text-align:right;">35%</strong>
           </div>
           <div id="mp3UploadRow" style="display:flex;gap:6px;align-items:center;">
@@ -412,15 +413,15 @@
               <input id="inMusicFile" type="file" accept="audio/*" class="hidden" />
             </label>
           </div>
-          <div id="musicTrackLabel" style="font-size:8.8px;color:#94A3B8;margin-top:5px;">
-            Activo: 4 pistas originales por bioma (+18% BPM en Muerte Súbita, ducking al 20% en alertas).
+          <div id="musicTrackLabel" style="font-size:8.8px;color:#B6C3D4;margin-top:5px;">
+            Activo: 10 pistas originales por bioma (+18% BPM en Muerte Súbita, ducking al 20% en alertas).
           </div>
         </div>
 
         <div class="section-card" style="border-color:rgba(251,113,133,0.32);">
           <div class="section-title">
             <span style="color:#FDA4AF;">❤️ Configuración de Tap Tap (Likes)</span>
-            <span style="color:#94A3B8;">Teclas T / Y / Space</span>
+            <span style="color:#B6C3D4;">Teclas T / Y / Space</span>
           </div>
           <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;">
             <div>
@@ -428,14 +429,14 @@
                 <span style="color:#E2E8F0;">Likes por Batería de Elixir</span>
                 <strong id="lblPersonalTap" class="tabular" style="color:#FDA4AF;">15 ❤️</strong>
               </div>
-              <input id="sliderPersonalTap" type="range" min="5" max="100" step="5" value="15" style="width:100%;" />
+              <input id="sliderPersonalTap" type="range" min="5" max="100" step="5" value="15" aria-label="Likes por batería de elixir" style="width:100%;" />
             </div>
             <div>
               <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px;">
                 <span style="color:#E2E8F0;">Meta de Likes para Frenesí x2</span>
                 <strong id="lblFrenzyGoal" class="tabular" style="color:#FCD34D;">100 ❤️</strong>
               </div>
-              <input id="sliderFrenzyGoal" type="range" min="25" max="500" step="25" value="100" style="width:100%;" />
+              <input id="sliderFrenzyGoal" type="range" min="25" max="500" step="25" value="100" aria-label="Meta de likes para Frenesí x2" style="width:100%;" />
             </div>
             <button id="btnUnderdogTapToggle" class="btn" style="text-align:left;display:flex;justify-content:space-between;align-items:center;">
               <span>Likes sin equipo apoyan al que va perdiendo</span>
@@ -452,10 +453,10 @@
         <div class="section-card">
           <div class="section-title">
             <span style="color:#7DD3FC;">TikFinity WebSocket (Auto-Reconnect)</span>
-            <span id="wsStatus" style="color:#94A3B8;">Offline</span>
+            <span id="wsStatus" style="color:#B6C3D4;">Offline</span>
           </div>
           <div style="display:flex;gap:6px;">
-            <input id="wsUrl" class="inp" type="text" value="ws://localhost:21213/" style="font-family:monospace;" />
+            <input id="wsUrl" class="inp" type="text" value="ws://localhost:21213/" aria-label="URL WebSocket de TikFinity" style="font-family:monospace;" />
             <button id="btnWsConnect" class="btn btn-primary" style="flex-shrink:0;">Conectar</button>
           </div>
         </div>
@@ -465,13 +466,13 @@
             <span style="color:#FDBA74;">Torneo (King of the Hill) &amp; Presets</span>
             <button id="btnTournamentToggle" class="btn" style="padding:3px 8px;font-size:9.5px;">Torneo: ON</button>
           </div>
-          <div style="font-size:8px;color:#94A3B8;margin:-2px 0 6px;">Al abrir, se reanuda el torneo guardado.</div>
+          <div style="font-size:8.5px;color:#B6C3D4;margin:-2px 0 6px;">Al abrir, se reanuda el torneo guardado.</div>
           <button id="btnNewTournament" class="btn btn-emerald" style="font-size:9.5px;width:100%;margin-bottom:6px;" title="Iniciar con los dos primeros equipos del roster actual">🏁 Nuevo torneo</button>
           <div style="padding:7px;background:rgba(251,191,36,0.07);border:1px solid rgba(251,191,36,0.2);border-radius:8px;margin-bottom:6px;">
             <div style="font-size:9px;font-weight:800;color:#FCD34D;">Copa Mundial · 64 países</div>
-            <div id="worldCupStatus" style="font-size:8px;color:#CBD5E1;margin:4px 0;"></div>
-            <div id="worldCupRounds" style="display:flex;flex-wrap:wrap;gap:3px;font-size:7px;color:#CBD5E1;margin-bottom:5px;"></div>
-            <div id="worldCupFixture" style="display:flex;flex-direction:column;gap:3px;font-size:8px;color:#E2E8F0;margin-bottom:5px;"></div>
+            <div id="worldCupStatus" style="font-size:8.5px;color:#CBD5E1;margin:4px 0;"></div>
+            <div id="worldCupRounds" style="display:flex;flex-wrap:wrap;gap:3px;font-size:7.5px;color:#CBD5E1;margin-bottom:5px;"></div>
+            <div id="worldCupFixture" style="display:flex;flex-direction:column;gap:3px;font-size:8.5px;color:#E2E8F0;margin-bottom:5px;"></div>
             <button id="btnWorldCupStart" class="btn btn-amber" style="font-size:9px;width:100%;">🏆 Iniciar Copa de 64</button>
           </div>
           <div class="grid-2" style="margin-bottom:6px;">
@@ -483,9 +484,9 @@
           </div>
           <div id="rosterChips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;"></div>
           <div style="display:flex;gap:4px;">
-            <input id="inAddFlag" class="inp" placeholder="🇯🇵" style="width:40px;text-align:center;" />
-            <input id="inAddName" class="inp" placeholder="Nombre (ej. JAPÓN)" />
-            <input id="inAddKey" class="inp" placeholder="JP" style="width:44px;text-align:center;text-transform:uppercase;" />
+            <input id="inAddFlag" class="inp" aria-label="Bandera del equipo" placeholder="🇯🇵" style="width:40px;text-align:center;" />
+            <input id="inAddName" class="inp" aria-label="Nombre del equipo" placeholder="Nombre (ej. JAPÓN)" />
+            <input id="inAddKey" class="inp" aria-label="Clave corta del equipo" placeholder="JP" style="width:44px;text-align:center;text-transform:uppercase;" />
             <button id="btnAddRoster" class="btn btn-emerald" style="flex-shrink:0;">+ Añadir</button>
           </div>
         </div>
@@ -530,11 +531,11 @@
       </div>
 
       <!-- MODAL DE TELEMETRÍA -->
-      <div id="telemetryModal" class="modal-overlay hidden">
+      <div id="telemetryModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="telemetryModalTitle">
         <div class="modal-header">
           <div>
-            <div style="font-size:13px;font-weight:900;letter-spacing:0.05em;">📊 TELEMETRÍA V3.2.0</div>
-            <div style="font-size:9px;color:#94A3B8;margin-top:2px;">Monetización, algoritmo y estabilidad WebSocket (solo eventos reales)</div>
+            <div id="telemetryModalTitle" style="font-size:13px;font-weight:900;letter-spacing:0.05em;">📊 TELEMETRÍA V3.2.0</div>
+            <div style="font-size:9px;color:#B6C3D4;margin-top:2px;">Monetización, algoritmo y estabilidad WebSocket (solo eventos reales)</div>
           </div>
           <button id="btnCloseTelemetry" class="btn">Cerrar ✕</button>
         </div>
@@ -572,7 +573,7 @@
 
         <div class="section-card">
           <div class="section-title"><span>Log WebSocket TikFinity</span></div>
-          <div id="telWsLog" style="font-family:monospace;font-size:9px;color:#94A3B8;max-height:110px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;"></div>
+          <div id="telWsLog" style="font-family:monospace;font-size:9px;color:#B6C3D4;max-height:110px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;"></div>
         </div>
         <div class="section-card">
           <div class="section-title"><span>Errores de calidad y persistencia</span></div>
@@ -587,11 +588,11 @@
       </div>
 
       <!-- MODAL DE LIGA (FASE A) -->
-      <div id="leagueModal" class="modal-overlay hidden">
+      <div id="leagueModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="leagueModalTitle">
         <div class="modal-header">
           <div>
-            <div style="font-size:13px;font-weight:900;letter-spacing:0.05em;">🏆 LIGA TACTICAL</div>
-            <div style="font-size:9px;color:#94A3B8;margin-top:2px;">
+            <div id="leagueModalTitle" style="font-size:13px;font-weight:900;letter-spacing:0.05em;">🏆 LIGA TACTICAL</div>
+            <div style="font-size:9px;color:#B6C3D4;margin-top:2px;">
               Temporada <strong id="leagueSeasonNum" class="tabular" style="color:#FBBF24;">01</strong> ·
               <span id="leagueSeasonDays" class="tabular">28</span> días ·
               <span id="leagueRoundsCount" class="tabular">0</span> rondas
@@ -600,12 +601,12 @@
           <button id="btnCloseLeague" class="btn">Cerrar ✕</button>
         </div>
 
-        <div class="league-tabs">
-          <button class="league-tab active" data-league-tab="standings">📊 Tabla</button>
-          <button class="league-tab" data-league-tab="mvps">👑 MVPs</button>
-          <button class="league-tab" data-league-tab="gifters">💰 Gifters</button>
-          <button class="league-tab" data-league-tab="pass">🎟️ Pase</button>
-          <button class="league-tab" data-league-tab="history">📜 Log</button>
+        <div class="league-tabs" role="tablist" aria-label="Secciones de la liga">
+          <button class="league-tab active" role="tab" data-league-tab="standings">📊 Tabla</button>
+          <button class="league-tab" role="tab" data-league-tab="mvps">👑 MVPs</button>
+          <button class="league-tab" role="tab" data-league-tab="gifters">💰 Gifters</button>
+          <button class="league-tab" role="tab" data-league-tab="pass">🎟️ Pase</button>
+          <button class="league-tab" role="tab" data-league-tab="history">📜 Log</button>
         </div>
 
         <div id="leagueContent"></div>
