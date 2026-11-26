@@ -67,6 +67,8 @@ const biomeRotation = new BiomeRotationSystem();
 const lastJoinAnnounceAt = new Map<string, number>();
 let nextBiomeOverride: BiomeTheme['id'] | null = null;
 
+const VICTORY_CELEBRATION_MS = 3000;
+
 const sim = new Simulation(
   $('arenaCanvas') as HTMLCanvasElement,
   $('stageFrame'),
@@ -947,6 +949,7 @@ function applyTowerDecay(): void {
 
 let restartTimer: ReturnType<typeof setInterval> | null = null;
 let victoryOverlayTimer: ReturnType<typeof setTimeout> | null = null;
+let victoryPhaseTimer: ReturnType<typeof setTimeout> | null = null;
 
 function triggerVictory(
   winner: TeamId,
@@ -1043,6 +1046,7 @@ function triggerVictory(
   $('vicFlag').innerHTML = renderTeamFlagHtml(winObj.key, winObj.flag, 'hero');
   $('vicName').textContent = winObj.name;
   $('vicName').style.color = winObj.color;
+  $('vicMiniWinner').textContent = `🏆 ${winObj.name}`;
   $('vicCrownScore').textContent =
     `👑 CORONAS ${crownScoreA} — ${crownScoreB} · VIDA ${towerHealthA}% — ${towerHealthB}%${decisionLabel}`;
   const vicAvatar = $('vicMvpAvatar') as HTMLImageElement;
@@ -1071,50 +1075,65 @@ function triggerVictory(
   settings.syncControlButtons();
 
   if (victoryOverlayTimer) clearTimeout(victoryOverlayTimer);
+  if (victoryPhaseTimer) clearTimeout(victoryPhaseTimer);
   if (restartTimer) clearInterval(restartTimer);
+
+  $('vicCountdown').textContent = '20';
+
   victoryOverlayTimer = setTimeout(() => {
     $('hud').classList.add('victory-active');
     const ov = $('victoryOverlay');
+    ov.dataset.phase = 'celebration';
+    $('vicStageCelebration').classList.remove('hidden');
+    $('vicStageIntermission').classList.add('hidden');
     ov.classList.remove('hidden', 'show');
     void ov.offsetWidth;
     ov.classList.add('show');
     victoryOverlayTimer = null;
 
-    let sec = 20;
-    $('vicCountdown').textContent = String(sec);
-    restartTimer = setInterval(() => {
-      sec--;
-      $('vicCountdown').textContent = String(Math.max(0, sec));
-      if (sec <= 0) {
-        if (restartTimer) clearInterval(restartTimer);
-        restartTimer = null;
-        if (worldCupCompleted) {
-          startWorldCup();
-          return;
+    victoryPhaseTimer = setTimeout(() => {
+      victoryPhaseTimer = null;
+      ov.dataset.phase = 'intermission';
+      $('vicStageCelebration').classList.add('hidden');
+      $('vicStageIntermission').classList.remove('hidden');
+
+      let sec = 20;
+      $('vicCountdown').textContent = String(sec);
+      restartTimer = setInterval(() => {
+        sec--;
+        $('vicCountdown').textContent = String(Math.max(0, sec));
+        if (sec <= 0) {
+          if (restartTimer) clearInterval(restartTimer);
+          restartTimer = null;
+          if (worldCupCompleted) {
+            startWorldCup();
+            return;
+          }
+          const selectedBiome = biomeVote.finish();
+          if (selectedBiome) nextBiomeOverride = selectedBiome.id;
+          if (nextWorldCupMatch?.teamA && nextWorldCupMatch.teamB) {
+            state.teamA = makeBaseState(nextWorldCupMatch.teamA, true);
+            state.teamB = makeBaseState(nextWorldCupMatch.teamB, false);
+            state.viewerTeams.clear();
+            applyTeamUI();
+            savePersistentState();
+          } else if (nextChallenger) {
+            Object.assign(winner === 'A' ? state.teamB : state.teamA, nextChallenger, { wins: 0, streak: 0 });
+            state.viewerTeams.clear();
+            applyTeamUI();
+            savePersistentState();
+          }
+          resetRound();
         }
-        const selectedBiome = biomeVote.finish();
-        if (selectedBiome) nextBiomeOverride = selectedBiome.id;
-        if (nextWorldCupMatch?.teamA && nextWorldCupMatch.teamB) {
-          state.teamA = makeBaseState(nextWorldCupMatch.teamA, true);
-          state.teamB = makeBaseState(nextWorldCupMatch.teamB, false);
-          state.viewerTeams.clear();
-          applyTeamUI();
-          savePersistentState();
-        } else if (nextChallenger) {
-          Object.assign(winner === 'A' ? state.teamB : state.teamA, nextChallenger, { wins: 0, streak: 0 });
-          state.viewerTeams.clear();
-          applyTeamUI();
-          savePersistentState();
-        }
-        resetRound();
-      }
-    }, 1000);
+      }, 1000);
+    }, VICTORY_CELEBRATION_MS);
   }, 650);
 }
 
 function resetRound(): void {
   if (restartTimer) clearInterval(restartTimer);
   if (victoryOverlayTimer) clearTimeout(victoryOverlayTimer);
+  if (victoryPhaseTimer) clearTimeout(victoryPhaseTimer);
   endTakeovers();
   impactLimiter.reset();
 
@@ -1151,8 +1170,11 @@ function resetRound(): void {
   $('hud').classList.remove('victory-active');
   $('suddenDeathVignette').classList.remove('active');
   $('frenzyVignette').classList.remove('active');
+  $('victoryOverlay').dataset.phase = 'celebration';
   $('victoryOverlay').classList.remove('show');
   $('victoryOverlay').classList.add('hidden');
+  $('vicStageCelebration').classList.remove('hidden');
+  $('vicStageIntermission').classList.add('hidden');
   $('vicBiomeVote').classList.add('hidden');
   applyTeamUI();
   updateBaseHUD();

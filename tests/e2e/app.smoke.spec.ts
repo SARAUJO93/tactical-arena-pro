@@ -52,7 +52,7 @@ test('avanza al siguiente partido de Copa después de una victoria', async ({ pa
   });
 
   await expect(page.locator('#worldCupStatus')).toContainText('1/63 partidos');
-  await expect(page.locator('#nameA')).not.toHaveText('MÉXICO', { timeout: 5000 });
+  await expect(page.locator('#nameA')).not.toHaveText('MÉXICO', { timeout: 6000 });
 });
 
 test('inicia un torneo nuevo con los dos primeros equipos del preset activo', async ({ page }) => {
@@ -137,7 +137,7 @@ test('persiste cambios de configuración después de recargar', async ({ page })
   await expect(page.locator('#sliderPersonalTap')).toHaveValue('30');
 });
 
-test('puede finalizar una ronda y mostrar la victoria', async ({ page }) => {
+test('puede finalizar una ronda, mostrar coronas y luego la pantalla de 20s', async ({ page }) => {
   await page.clock.install();
   await page.clock.pauseAt(new Date());
   await page.evaluate(() => {
@@ -146,15 +146,23 @@ test('puede finalizar una ronda y mostrar la victoria', async ({ page }) => {
   });
   await page.clock.runFor(650);
   await expect(page.locator('#victoryOverlay')).not.toHaveClass(/hidden/);
+  await expect(page.locator('#vicStageCelebration')).not.toHaveClass(/hidden/);
+  await expect(page.locator('#vicStageIntermission')).toHaveClass(/hidden/);
   await expect(page.locator('#vicName')).toBeVisible();
+  await expect(page.locator('#vicCrownScore')).toContainText('CORONAS');
+
+  await page.clock.runFor(3000);
+  await expect(page.locator('#vicStageCelebration')).toHaveClass(/hidden/);
+  await expect(page.locator('#vicStageIntermission')).not.toHaveClass(/hidden/);
   await expect(page.locator('#vicCountdown')).toHaveText('20');
+
   await page.clock.runFor(19000);
   await expect(page.locator('#vicCountdown')).toHaveText('1');
   await expect(page.locator('#victoryOverlay')).not.toHaveClass(/hidden/);
+
   await page.clock.runFor(1000);
   await expect(page.locator('#vicCountdown')).toHaveText('0');
   await expect(page.locator('#victoryOverlay')).toHaveClass(/hidden/);
-  await expect(page.locator('#vicCrownScore')).toContainText('CORONAS');
 });
 
 test('muestra reconexion y recuperacion cuando TikFinity cae', async ({ page }) => {
@@ -209,7 +217,7 @@ test('muestra reconexion y recuperacion cuando TikFinity cae', async ({ page }) 
 });
 
 test('mantiene desactivada la observabilidad externa por defecto', async ({ page }) => {
-  await page.route('https://collector.example.com/events', async (route) => {
+  await page.route('[https://collector.example.com/events](https://collector.example.com/events)', async (route) => {
     await route.fulfill({
       status: 202,
       contentType: 'application/json',
@@ -220,7 +228,7 @@ test('mantiene desactivada la observabilidad externa por defecto', async ({ page
   await expect(page.locator('#btnExternalTelemetry')).toContainText(/OFF/);
   await expect(page.locator('#inExternalTelemetryUrl')).toBeVisible();
 
-  await page.locator('#inExternalTelemetryUrl').fill('https://collector.example.com/events');
+  await page.locator('#inExternalTelemetryUrl').fill('[https://collector.example.com/events](https://collector.example.com/events)');
   await page.locator('#btnExternalTelemetry').click();
   await expect(page.locator('#btnExternalTelemetry')).toContainText(/ON/);
   await expect(page.locator('#telExternalStatus')).toContainText(/Enviado|Estado externo:/);

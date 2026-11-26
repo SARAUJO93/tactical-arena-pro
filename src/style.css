@@ -613,7 +613,7 @@ html, body {
 .team-flag-fallback.team-flag-hero { font-size: 62px; line-height: 1; }
 .team-flag-fallback.team-flag-inline { font-size: 13px; line-height: 1; }
 
-/* ===================== VICTORIA FLOTANTE SOBRE ARENA ===================== */
+/* ===================== VICTORIA EN 2 FASES ===================== */
 #victoryOverlay {
   position: absolute; inset: 0; z-index: 42;
   display: flex; align-items: center; justify-content: center; overflow: hidden;
@@ -623,34 +623,40 @@ html, body {
   background: radial-gradient(ellipse at 45% 46%, rgba(4, 9, 18, 0.14) 0%, rgba(3, 7, 15, 0.62) 100%);
   backdrop-filter: blur(1.5px);
   -webkit-backdrop-filter: blur(1.5px);
+  transition: background 0.35s ease, backdrop-filter 0.35s ease;
+}
+#victoryOverlay[data-phase="intermission"] {
+  background: radial-gradient(ellipse at 45% 42%, rgba(12, 22, 40, 0.68) 0%, rgba(4, 8, 16, 0.88) 100%);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 .vic-rays {
   position: absolute; inset: -45%; opacity: 0.14; pointer-events: none;
   background: repeating-conic-gradient(from 0deg at 45% 48%, color-mix(in srgb, var(--vic-accent) 32%, transparent) 0deg 5deg, transparent 5deg 18deg);
   animation: vicSpin 30s linear infinite;
 }
+
+/* FASE 1: CELEBRACIÓN Y CORONAS FLOTANDO SOBRE LA ARENA */
 .vic-cinematic-content {
   position: relative; z-index: 2; width: 100%;
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  max-height: 100%; overflow-y: auto; scrollbar-width: none;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
   padding: 4px 2px;
   background: transparent;
   border: none;
   box-shadow: none;
 }
-.vic-cinematic-content::-webkit-scrollbar { display: none; }
 .vic-kicker {
-  color: #E2E8F0; font-size: 7.5px; font-weight: 800; letter-spacing: 0.18em;
-  padding: 2px 9px; border-radius: 999px;
-  background: rgba(5, 11, 22, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #E2E8F0; font-size: 7.8px; font-weight: 800; letter-spacing: 0.18em;
+  padding: 2px 10px; border-radius: 999px;
+  background: rgba(5, 11, 22, 0.74);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 }
 
 .vic-side-plate {
   width: 100%;
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  padding: 7px 11px; border-radius: 11px;
+  padding: 8px 12px; border-radius: 12px;
   border: 1.5px solid rgba(255, 255, 255, 0.22);
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
@@ -677,15 +683,15 @@ html, body {
 
 .vic-center-stage {
   width: 100%;
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: 2px 0 0;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 2px 0;
 }
 .vic-vs-pill {
-  font-size: 9px; font-weight: 900; letter-spacing: 0.2em; color: #FFFFFF;
+  font-size: 9.5px; font-weight: 900; letter-spacing: 0.2em; color: #FFFFFF;
   text-shadow: 0 2px 0 rgba(2, 6, 23, 0.95), 0 4px 12px rgba(0, 0, 0, 0.85);
 }
 .vic-title {
-  color: #FDE047; font-size: 27px; font-weight: 900; letter-spacing: 0.05em;
+  color: #FDE047; font-size: 28px; font-weight: 900; letter-spacing: 0.05em;
   line-height: 1.02; margin: 0;
   text-shadow:
     0 3px 0 #020617,
@@ -694,23 +700,20 @@ html, body {
 }
 .vic-crown-rack {
   display: flex; align-items: flex-end; justify-content: center; gap: 10px;
-  margin: 4px 0 -2px;
+  margin: 4px 0 0;
 }
 .vic-crown-slot {
-  width: 40px; height: 32px; border-radius: 10px;
+  width: 42px; height: 34px; border-radius: 10px;
   display: grid; place-items: center;
   background: rgba(6, 12, 24, 0.82);
   border: 1.5px solid rgba(148, 163, 184, 0.28);
   color: rgba(148, 163, 184, 0.3);
   transform: scale(0.88);
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5);
-  transition: transform 0.25s var(--ease-out), color 0.25s var(--ease-out), border-color 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out);
 }
-.vic-crown-slot:nth-child(2) {
-  width: 46px; height: 36px;
-}
-.vic-crown-slot .ui-icon { width: 20px; height: 20px; }
-.vic-crown-slot:nth-child(2) .ui-icon { width: 23px; height: 23px; }
+.vic-crown-slot:nth-child(2) { width: 48px; height: 38px; }
+.vic-crown-slot .ui-icon { width: 21px; height: 21px; }
+.vic-crown-slot:nth-child(2) .ui-icon { width: 24px; height: 24px; }
 .vic-crown-slot.earned {
   color: #FDE047;
   border-color: #FACC15;
@@ -721,20 +724,20 @@ html, body {
 #victoryOverlay.show .vic-crown-slot.earned {
   animation: crownPop 0.42s var(--ease-out) both;
 }
-#victoryOverlay.show .vic-crown-slot.earned:nth-child(2) { animation-delay: 0.1s; }
-#victoryOverlay.show .vic-crown-slot.earned:nth-child(3) { animation-delay: 0.2s; }
+#victoryOverlay.show .vic-crown-slot.earned:nth-child(2) { animation-delay: 0.12s; }
+#victoryOverlay.show .vic-crown-slot.earned:nth-child(3) { animation-delay: 0.24s; }
 
 .vic-winner-plate {
   background: linear-gradient(95deg, color-mix(in srgb, var(--vic-accent) 44%, #0B1324), rgba(8, 16, 30, 0.94));
   border-color: color-mix(in srgb, var(--vic-accent) 82%, #FFFFFF 18%);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.68), 0 0 22px color-mix(in srgb, var(--vic-accent) 30%, transparent);
 }
-.vic-flag-shell { width: 42px; height: 28px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-#vicFlag { width: 42px; height: 28px; display: flex; align-items: center; justify-content: center; }
+.vic-flag-shell { width: 44px; height: 30px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+#vicFlag { width: 44px; height: 30px; display: flex; align-items: center; justify-content: center; }
 .vic-winner-info { flex: 1; text-align: left; min-width: 0; }
-.vic-subtitle { color: #E2E8F0; font-size: 7px; font-weight: 800; letter-spacing: 0.16em; }
+.vic-subtitle { color: #E2E8F0; font-size: 7.2px; font-weight: 800; letter-spacing: 0.16em; }
 #vicName {
-  font-size: 14.5px; font-weight: 900; text-transform: uppercase;
+  font-size: 15px; font-weight: 900; text-transform: uppercase;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85);
 }
@@ -743,55 +746,86 @@ html, body {
   padding: 2px 7px; border-radius: 999px;
   background: rgba(249, 115, 22, 0.34); border: 1px solid rgba(251, 146, 60, 0.7); flex-shrink: 0;
 }
-
 .vic-crown-score {
-  padding: 4px 10px; border-radius: 999px;
-  color: #FEF08A; font-size: 8px; font-weight: 900; letter-spacing: 0.04em;
-  background: rgba(7, 13, 25, 0.86); border: 1px solid rgba(251, 191, 36, 0.45);
+  padding: 4px 11px; border-radius: 999px;
+  color: #FEF08A; font-size: 8.2px; font-weight: 900; letter-spacing: 0.04em;
+  background: rgba(7, 13, 25, 0.88); border: 1px solid rgba(251, 191, 36, 0.45);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
 }
-.vic-mvp-card {
-  width: 100%; display: flex; align-items: center; gap: 9px; text-align: left;
-  padding: 6px 10px; border-radius: 12px;
-  background: rgba(8, 16, 30, 0.88);
-  border: 1px solid rgba(245, 207, 135, 0.38);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+
+/* FASE 2: PANTALLA DEDICADA DE 20s EN RECUADRO ESPECÍFICO */
+.vic-intermission-card {
+  position: relative; z-index: 2; width: 100%;
+  display: flex; flex-direction: column; align-items: center; gap: 9px;
+  padding: 15px 13px 14px; border-radius: 20px;
+  background: linear-gradient(160deg, rgba(14, 24, 42, 0.94), rgba(6, 11, 20, 0.97));
+  border: 1.5px solid color-mix(in srgb, var(--vic-accent) 45%, rgba(226, 232, 240, 0.28));
+  box-shadow:
+    0 22px 60px rgba(0, 0, 0, 0.65),
+    0 0 32px color-mix(in srgb, var(--vic-accent) 18%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  animation: vicCardIn 0.34s var(--ease-out) both;
 }
-.vic-mvp-card img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 2px solid #ffd77c; flex-shrink: 0; }
-.vic-mvp-label { display: flex; align-items: center; gap: 4px; color: #ffd77c; font-size: 7px; font-weight: 900; letter-spacing: 0.14em; }
+.vic-intermission-head {
+  width: 100%;
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.vic-intermission-eyebrow {
+  font-size: 7.8px; font-weight: 900; letter-spacing: 0.16em; color: #94A3B8;
+}
+.vic-mini-winner {
+  font-size: 8.5px; font-weight: 900; letter-spacing: 0.06em; color: #FDE047;
+  padding: 2px 8px; border-radius: 999px;
+  background: color-mix(in srgb, var(--vic-accent) 22%, rgba(15, 23, 42, 0.85));
+  border: 1px solid color-mix(in srgb, var(--vic-accent) 55%, transparent);
+}
+.vic-mvp-card {
+  width: 100%; display: flex; align-items: center; gap: 10px; text-align: left;
+  padding: 9px 11px; border-radius: 13px;
+  background: linear-gradient(120deg, rgba(251, 191, 36, 0.14), rgba(255, 255, 255, 0.04));
+  border: 1px solid rgba(245, 207, 135, 0.34);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.vic-mvp-card img { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; border: 2px solid #ffd77c; flex-shrink: 0; }
+.vic-mvp-label { display: flex; align-items: center; gap: 4px; color: #ffd77c; font-size: 7.4px; font-weight: 900; letter-spacing: 0.14em; }
 .vic-mvp-label .ui-icon { width: 10px; height: 10px; }
-#vicMvpUser { color: #fff; font-size: 10.5px; font-weight: 800; }
-#vicMvpScore { color: #d8e5f3; font-size: 8px; }
+#vicMvpUser { color: #fff; font-size: 11.5px; font-weight: 800; }
+#vicMvpScore { color: #d8e5f3; font-size: 8.5px; }
 .vic-next-goal {
-  padding: 3px 9px; border-radius: 999px;
-  color: #d9f99d; font-size: 7.8px; font-weight: 800;
-  background: rgba(7, 14, 24, 0.82); border: 1px solid rgba(190, 242, 100, 0.3);
+  width: 100%; padding: 6px 10px; border-radius: 10px;
+  color: #d9f99d; font-size: 8.4px; font-weight: 800;
+  background: rgba(132, 204, 22, 0.1); border: 1px solid rgba(190, 242, 100, 0.26);
+}
+.vic-challenger {
+  width: 100%; padding: 7px 10px; border-radius: 11px;
+  border: 1px solid rgba(125, 211, 252, 0.48);
+  background: rgba(14, 116, 144, 0.24);
+  color: #e0f7ff; font-size: 8.8px; font-weight: 900;
 }
 .vic-biome-vote {
   width: 100%; color: #cffafe;
-  font-size: 8.2px; font-weight: 800; line-height: 1.38;
-  background: rgba(7, 18, 32, 0.88); border: 1px solid rgba(103, 232, 249, 0.34);
-  border-radius: 10px; padding: 6px 9px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+  font-size: 8.6px; font-weight: 800; line-height: 1.42;
+  background: rgba(34, 211, 238, 0.09); border: 1px solid rgba(103, 232, 249, 0.3);
+  border-radius: 11px; padding: 8px 10px;
 }
-.vic-challenger {
-  padding: 4px 10px; border: 1px solid rgba(125, 211, 252, 0.58);
-  background: rgba(8, 28, 46, 0.88); border-radius: 999px;
-  color: #e0f7ff; font-size: 8px; font-weight: 800;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+.vic-countdown-block {
+  width: 100%;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding-top: 4px;
 }
 .vic-countdown-label {
-  color: #F8FAFC; font-size: 8.5px; font-weight: 900; letter-spacing: 0.14em;
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.95);
+  color: #F8FAFC; font-size: 9px; font-weight: 900; letter-spacing: 0.14em;
 }
-#vicCountdown { color: #FDE047; font-size: 13.5px; }
+#vicCountdown { color: #FDE047; font-size: 14.5px; }
 .vic-progress {
-  width: min(100%, 220px); height: 4px; border-radius: 99px; overflow: hidden;
-  background: rgba(2, 6, 23, 0.72); border: 1px solid rgba(255, 255, 255, 0.16);
+  width: 100%; height: 5px; border-radius: 99px; overflow: hidden;
+  background: rgba(2, 6, 23, 0.78); border: 1px solid rgba(255, 255, 255, 0.16);
 }
 .vic-progress-fill { display: block; height: 100%; width: 100%; transform-origin: left center; background: linear-gradient(90deg, #9edaff, #ffe09b, #fff); }
-#victoryOverlay.show .vic-progress-fill { animation: vicDrain 20s linear forwards; }
-.vic-thanks { display: none; }
+#victoryOverlay[data-phase="intermission"] .vic-progress-fill { animation: vicDrain 20s linear forwards; }
+.vic-thanks { color: rgba(203, 213, 225, 0.65); font-size: 7px; font-weight: 700; letter-spacing: 0.18em; }
 
 @keyframes vicPlateDrop {
   0% { opacity: 0; transform: translateY(-14px) scale(0.96); }
@@ -799,6 +833,10 @@ html, body {
 }
 @keyframes vicPlateRise {
   0% { opacity: 0; transform: translateY(16px) scale(0.95); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes vicCardIn {
+  0% { opacity: 0; transform: translateY(14px) scale(0.96); }
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes crownPop {

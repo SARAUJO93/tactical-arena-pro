@@ -313,20 +313,20 @@
 
       </div>
 
-      <!-- CINEMÁTICA TÁCTICA DE VICTORIA SOBRE LA ARENA -->
-      <div id="victoryOverlay" class="hidden" role="dialog" aria-modal="true" aria-label="Resultado de batalla" aria-live="polite">
+      <!-- CINEMÁTICA DE VICTORIA EN 2 FASES -->
+      <div id="victoryOverlay" class="hidden" data-phase="celebration" role="dialog" aria-modal="true" aria-label="Resultado de batalla" aria-live="polite">
         <div class="vic-rays"></div>
-        <div class="vic-cinematic-content">
+
+        <!-- FASE 1: CORONAS Y VICTORIA FLOTANDO SOBRE LA ARENA -->
+        <div id="vicStageCelebration" class="vic-cinematic-content">
           <div id="vicKicker" class="vic-kicker">TACTICAL ARENA · CIERRE DE SECTOR</div>
 
-          <!-- Placa superior: rival / bando derrotado -->
           <div id="vicLoserBanner" class="vic-side-plate vic-loser-plate">
             <span id="vicLoserFlag" class="vic-side-flag">🇦🇷</span>
             <span id="vicLoserName" class="vic-side-name">ARGENTINA</span>
             <span class="vic-side-tag">SECTOR CAÍDO</span>
           </div>
 
-          <!-- Núcleo central VS / ¡GANADOR! + 3 coronas modulares -->
           <div class="vic-center-stage">
             <div class="vic-vs-pill">VS.</div>
             <div class="vic-title">¡GANADOR!</div>
@@ -337,7 +337,6 @@
             </div>
           </div>
 
-          <!-- Placa inferior: bando ganador -->
           <div id="vicWinnerPlate" class="vic-side-plate vic-winner-plate">
             <div class="vic-flag-shell"><div id="vicFlag" aria-label="Bandera ganadora"></div></div>
             <div class="vic-winner-info">
@@ -348,6 +347,14 @@
           </div>
 
           <div id="vicCrownScore" class="vic-crown-score" aria-live="polite">👑 CORONAS 0 — 0</div>
+        </div>
+
+        <!-- FASE 2: PANTALLA DEDICADA DE 20s PARA MVP, PRÓXIMO DUELO Y VOTACIÓN -->
+        <div id="vicStageIntermission" class="vic-intermission-card hidden">
+          <div class="vic-intermission-head">
+            <span class="vic-intermission-eyebrow">RESUMEN Y SIGUIENTE BATALLA</span>
+            <span id="vicMiniWinner" class="vic-mini-winner">🏆 MÉXICO</span>
+          </div>
 
           <div class="vic-mvp-card">
             <img id="vicMvpAvatar" src="" alt="" />
@@ -364,9 +371,12 @@
           <div id="vicNextGoal" class="vic-next-goal">🧭 Participa en 3 biomas para desbloquear el marco Explorador</div>
           <div id="vicChallengerBanner" class="vic-challenger hidden">⚔️ NUEVO RETADOR: 🇨🇴 COLOMBIA</div>
           <div id="vicBiomeVote" class="vic-biome-vote hidden" aria-live="polite"></div>
-          <div class="vic-countdown-label">SIGUIENTE BATALLA EN <strong id="vicCountdown" class="tabular">20</strong>s</div>
-          <div class="vic-progress"><span class="vic-progress-fill"></span></div>
-          <div class="vic-thanks">TACTICAL ARENA · PROTOCOLO DE REDESPLIEGUE</div>
+
+          <div class="vic-countdown-block">
+            <div class="vic-countdown-label">SIGUIENTE BATALLA EN <strong id="vicCountdown" class="tabular">20</strong>s</div>
+            <div class="vic-progress"><span class="vic-progress-fill"></span></div>
+            <div class="vic-thanks">TACTICAL ARENA · PROTOCOLO DE REDESPLIEGUE</div>
+          </div>
         </div>
       </div>
 
