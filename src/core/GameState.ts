@@ -133,6 +133,10 @@ export interface PlayerRecord {
   mvpRounds: number;
   teamsSupported: Partial<Record<TeamId, number>>;
   badges: string[];
+  dailyStreak?: number;
+  bestDailyStreak?: number;
+  lastStreakDay?: string;
+  streakXp?: number;
   firstSeen: number;
   lastSeen: number;
 }
@@ -1267,6 +1271,21 @@ export function sanitizePlayerRecords(value: unknown): Record<string, PlayerReco
     record.firstSeen = nonNegativeNumber(raw.firstSeen, record.firstSeen);
     record.lastSeen = nonNegativeNumber(raw.lastSeen, record.lastSeen);
     if (Array.isArray(raw.badges)) record.badges = raw.badges.filter((badge): badge is string => typeof badge === 'string').slice(0, 100);
+    if (typeof raw.dailyStreak === 'number') {
+      record.dailyStreak = Math.floor(nonNegativeNumber(raw.dailyStreak));
+    }
+    if (typeof raw.bestDailyStreak === 'number') {
+      record.bestDailyStreak = Math.floor(nonNegativeNumber(raw.bestDailyStreak));
+    }
+    if (record.dailyStreak && (!record.bestDailyStreak || record.bestDailyStreak < record.dailyStreak)) {
+      record.bestDailyStreak = record.dailyStreak;
+    }
+    if (typeof raw.lastStreakDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.lastStreakDay)) {
+      record.lastStreakDay = raw.lastStreakDay;
+    }
+    if (typeof raw.streakXp === 'number') {
+      record.streakXp = Math.floor(nonNegativeNumber(raw.streakXp));
+    }
     if (isObject(raw.teamsSupported)) {
       if (typeof raw.teamsSupported.A === 'number') record.teamsSupported.A = nonNegativeNumber(raw.teamsSupported.A);
       if (typeof raw.teamsSupported.B === 'number') record.teamsSupported.B = nonNegativeNumber(raw.teamsSupported.B);

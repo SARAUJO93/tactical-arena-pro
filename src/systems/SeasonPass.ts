@@ -40,7 +40,8 @@ export function computeSeasonXp(rec: PlayerRecord | undefined): number {
   const taps = Math.max(0, rec.period.tapsSeason);
   const coins = Math.max(0, rec.period.coinsSeason);
   const mvps = Math.max(0, rec.mvpRounds);
-  return Math.floor(taps + Math.sqrt(coins) * 8 + mvps * 50);
+  const streakXp = Math.max(0, rec.streakXp ?? 0);
+  return Math.floor(taps + Math.sqrt(coins) * 8 + mvps * 50 + streakXp);
 }
 
 export function getSeasonPassProgress(xpRaw: number): SeasonPassProgress {
