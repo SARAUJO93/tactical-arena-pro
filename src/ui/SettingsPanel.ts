@@ -467,7 +467,8 @@ export class SettingsPanel {
     const lifetimeBlock = historical.length
       ? historical.map((p, i) => {
           const color = p.favoriteTeam === 'A' ? state.teamA.color : p.favoriteTeam === 'B' ? state.teamB.color : '#FBBF24';
-          const meta = `${p.mvpRounds}🏅 · ${fmtCoins(p.lifetime.coins)}🪙`;
+          const streakTag = (p.dailyStreak ?? 0) >= 2 ? ` · 🔥${p.dailyStreak}d` : '';
+          const meta = `${p.mvpRounds}🏅 · ${fmtCoins(p.lifetime.coins)}🪙${streakTag}`;
           return renderRow(i, p.avatarUrl, p.user, color, p.peaks.maxSessionScore, meta);
         }).join('')
       : `<div class="league-empty">Sin históricos todavía. La próxima ronda abrirá el registro.</div>`;
@@ -554,16 +555,17 @@ export class SettingsPanel {
           const cur = progress.current;
           const border = cur ? cur.ringColor : 'rgba(255,255,255,0.35)';
           const badgeText = cur ? `${cur.emblem} T${cur.tier}` : 'T0';
+          const streakTag = (rec.dailyStreak ?? 0) >= 2 ? ` · 🔥${rec.dailyStreak}d` : '';
           return `
             <div class="league-row${i < 3 ? ` podium-${i + 1}` : ''}">
               <div class="league-pos">${i + 1}</div>
               <img class="league-avatar" src="${av.dataUrl}" alt="" style="border-color:${border};" />
               <div class="league-name">${escapeHtml(rec.user)}</div>
-              <div class="league-meta">${badgeText} · ${progress.progressPct}%</div>
+              <div class="league-meta">${badgeText} · ${progress.progressPct}%${streakTag}</div>
               <div class="league-pts tabular" style="color:${cur ? cur.ringColor : '#94A3B8'};font-size:10px;">${progress.xp} XP</div>
             </div>`;
         }).join('')
-      : `<div class="league-empty">Los viewers suben en el Pase con taps, follows, shares y regalos reales.</div>`;
+      : `<div class="league-empty">Los viewers suben en el Pase con taps, follows, shares, rachas diarias y regalos reales.</div>`;
 
     return `
       ${champBanner}

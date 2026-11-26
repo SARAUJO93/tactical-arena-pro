@@ -7,7 +7,7 @@ import {
   savePersistentState, state, TeamPreset,
   // Fase A
   beginRound, finalizeRound, resetIfNeeded, resetSession as resetSessionState,
-  scoreMvp, ensurePlayerRecord,
+  scoreMvp, ensurePlayerRecord, PlayerRecord,
 } from './core/GameState';
 import { ElixirSystem } from './systems/ElixirSystem';
 import { SynthEngine } from './audio/SynthEngine';
@@ -47,6 +47,7 @@ import {
   getPreviousSeasonChampion,
   syncSeasonPassBadges,
 } from './systems/SeasonPass';
+import { recordDailyVisit } from './systems/DailyStreak';
 import { getWeeklyEventForDate } from './systems/WeeklySchedule';
 import { recordWorldCupWinner } from './systems/WorldCup';
 import { advanceTowerDecay, getCrownScore, getDefenseHealthPercent, resolveTimeoutWinner } from './systems/CrownScoring';
@@ -227,6 +228,24 @@ function checkSeasonPassUnlock(user: string, avatarUrl: string): void {
   savePersistentState();
 }
 
+function trackDailyStreak(rec: PlayerRecord, avatarUrl: string): void {
+  const streakUpdate = recordDailyVisit(rec);
+  if (!streakUpdate.isFirstVisitToday) return;
+  savePersistentState();
+  if (streakUpdate.streakExtended) {
+    pushNotificationDock(
+      `🔥 ${rec.user} · Día ${streakUpdate.streak} seguido`,
+      `Racha diaria activa · +${streakUpdate.xpBonus} XP al Pase`,
+      '#FB923C',
+      avatarUrl,
+      rec.user,
+      '🔥',
+      'RACHA',
+      2900
+    );
+  }
+}
+
 function updateFrenzyGaugeUI(): void {
   const pct = state.frenzyActive ? 100 : Math.min(100, Math.round((state.globalTapCount / state.frenzyGoalLikes) * 100));
   $('frenzyGaugeFill').style.width = `${pct}%`;
@@ -267,6 +286,7 @@ function updateOnboardingTicker(): void {
     `${weekly.badge} ${weekly.title}`,
     `❤️ ${state.personalTapThreshold} Taps = Tropas`,
     `⚔️ ${goalLikes} Likes = Asalto / Escudo 3s`,
+    '🔥 Vuelve cada día para subir tu racha y ganar XP gratis',
     `🎟️ Sube tu Pase Gratis con Taps`,
     '🧭 Participa en 3 biomas y desbloquea el marco Explorador',
     '🤝 Los taps sin equipo apoyan al bando que va perdiendo',
@@ -465,6 +485,7 @@ function trackTapForViewer(user: string, avatarUrl: string, team: TeamId | null,
     rec.teamsSupported[team] = (rec.teamsSupported[team] ?? 0) + count;
   }
   state.currentRoundTaps += count;
+  trackDailyStreak(rec, avatarUrl);
   const exploration = recordBiomeExploration(rec.badges, getActiveBiome().id);
   if (exploration.newBiome) {
     savePersistentState();
@@ -496,6 +517,7 @@ function trackGiftForViewer(user: string, avatarUrl: string, team: TeamId, count
   rec.teamsSupported[team] = (rec.teamsSupported[team] ?? 0) + count;
   state.currentRoundCoins += coinDelta;
   state.currentRoundGifterCoins[user] = (state.currentRoundGifterCoins[user] ?? 0) + coinDelta;
+  trackDailyStreak(rec, avatarUrl);
   checkSeasonPassUnlock(user, avatarUrl);
 }
 
@@ -503,6 +525,7 @@ function trackFollowForViewer(user: string, avatarUrl: string): void {
   if (!user) return;
   const rec = ensurePlayerRecord(user, avatarUrl);
   rec.lifetime.follows += 1;
+  trackDailyStreak(rec, avatarUrl);
   checkSeasonPassUnlock(user, avatarUrl);
 }
 
@@ -510,6 +533,7 @@ function trackShareForViewer(user: string, avatarUrl: string): void {
   if (!user) return;
   const rec = ensurePlayerRecord(user, avatarUrl);
   rec.lifetime.shares += 1;
+  trackDailyStreak(rec, avatarUrl);
   checkSeasonPassUnlock(user, avatarUrl);
 }
 
