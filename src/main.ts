@@ -69,6 +69,15 @@ let nextBiomeOverride: BiomeTheme['id'] | null = null;
 
 const VICTORY_CELEBRATION_MS = 3000;
 
+function shortTeamLabel(base: { name: string; key: string }): string {
+  return base.name.length <= 9 ? base.name : base.key;
+}
+
+function shortUser(user: string): string {
+  const clean = user.startsWith('@') ? user : `@${user}`;
+  return clean.length > 13 ? `${clean.slice(0, 12)}…` : clean;
+}
+
 const sim = new Simulation(
   $('arenaCanvas') as HTMLCanvasElement,
   $('stageFrame'),
@@ -168,6 +177,7 @@ function updateFactionHUD(): void {
 function triggerFactionGoalReward(team: TeamId): void {
   const base = team === 'A' ? state.teamA : state.teamB;
   const by = team === 'A' ? sim.baseAY : sim.baseBY;
+  const teamLabel = shortTeamLabel(base);
 
   if (isOnlyCoreRemaining(team)) {
     const heal = 150;
@@ -183,8 +193,8 @@ function triggerFactionGoalReward(team: TeamId): void {
     updatePanicAlerts();
 
     pushNotificationDock(
-      `🛡️ META DE ${base.name} COMPLETADA`,
-      `Escudo de emergencia (3s) +${heal} HP y +1.5⚡`,
+      `META ${teamLabel}`,
+      `Escudo 3s · +${heal}HP +1.5⚡`,
       base.color,
       '',
       '',
@@ -200,8 +210,8 @@ function triggerFactionGoalReward(team: TeamId): void {
     synth.playSFX('frenzy');
 
     pushNotificationDock(
-      `⚔️ ASALTO DE ${base.name}`,
-      'Meta de likes: +2.0⚡ Elixir y refuerzos al frente',
+      `ASALTO ${teamLabel}`,
+      '+2.0⚡ Elixir y refuerzos',
       base.color,
       '',
       '',
@@ -218,8 +228,8 @@ function checkSeasonPassUnlock(user: string, avatarUrl: string): void {
   const unlocked = syncSeasonPassBadges(rec);
   if (!unlocked) return;
   pushNotificationDock(
-    `🎟️ ${user} · ${unlocked.emblem} ${unlocked.title}`,
-    `Pase T${unlocked.tier} desbloqueado: marco cosmético activo`,
+    `${shortUser(user)} · T${unlocked.tier}`,
+    `Pase ${unlocked.title}: marco activo`,
     unlocked.ringColor,
     avatarUrl,
     user,
@@ -236,8 +246,8 @@ function trackDailyStreak(rec: PlayerRecord, avatarUrl: string): void {
   savePersistentState();
   if (streakUpdate.streakExtended) {
     pushNotificationDock(
-      `🔥 ${rec.user} · Día ${streakUpdate.streak} seguido`,
-      `Racha diaria activa · +${streakUpdate.xpBonus} XP al Pase`,
+      `${shortUser(rec.user)} · Día ${streakUpdate.streak}`,
+      `Racha diaria +${streakUpdate.xpBonus} XP`,
       '#FB923C',
       avatarUrl,
       rec.user,
@@ -357,8 +367,8 @@ function announceActiveBiome(): void {
   const b = getActiveBiome();
   const weekly = getWeeklyEventForDate();
   const sub = weekly.id !== 'regular'
-    ? `${weekly.title} · ${weekly.description}`
-    : `Rotación aleatoria · ${biomeRotation.getRemainingIds().length} biomas por descubrir`;
+    ? weekly.title
+    : `${biomeRotation.getRemainingIds().length} biomas restantes`;
   pushNotificationDock(b.name, sub, b.accent, '', '', b.icon, weekly.dayLabel, 3200);
 }
 
@@ -367,7 +377,7 @@ function showCenterBanner(title: string, sub: string, color = '#FBBF24', avatarU
 }
 
 function showLastCommander(user: string, avatarUrl: string, actionText: string, color: string): void {
-  pushNotificationDock(user.startsWith('@') ? user : `@${user}`, actionText, color, avatarUrl, user, '🎁', 'LIVE');
+  pushNotificationDock(shortUser(user), actionText, color, avatarUrl, user, '🎁', 'LIVE');
 }
 
 function updatePanicAlerts(): void {
@@ -378,7 +388,7 @@ function updatePanicAlerts(): void {
   if (aLow && !state.teamA.panicActive) {
     state.teamA.panicActive = true;
     synth.playSFX('panic');
-    pushNotificationDock(`🚨 ${state.teamA.name} EN PELIGRO`, `Envía ${shieldSlot.display} → Escudo 3s`, '#ef4444', '', '', '🚨', 'SOS');
+    pushNotificationDock(`${shortTeamLabel(state.teamA)} EN PELIGRO`, `${shieldSlot.display} → Escudo 3s`, '#ef4444', '', '', '🚨', 'SOS');
   } else if (!aLow) {
     state.teamA.panicActive = false;
   }
@@ -386,7 +396,7 @@ function updatePanicAlerts(): void {
   if (bLow && !state.teamB.panicActive) {
     state.teamB.panicActive = true;
     synth.playSFX('panic');
-    pushNotificationDock(`🚨 ${state.teamB.name} EN PELIGRO`, `Envía ${shieldSlot.display} → Escudo 3s`, '#ef4444', '', '', '🚨', 'SOS');
+    pushNotificationDock(`${shortTeamLabel(state.teamB)} EN PELIGRO`, `${shieldSlot.display} → Escudo 3s`, '#ef4444', '', '', '🚨', 'SOS');
   } else if (!bLow) {
     state.teamB.panicActive = false;
   }
@@ -493,15 +503,13 @@ function trackTapForViewer(user: string, avatarUrl: string, team: TeamId | null,
   if (exploration.newBiome) {
     savePersistentState();
     pushNotificationDock(
-      exploration.newlyUnlocked ? '🧭 MARCO EXPLORADOR DESBLOQUEADO' : `${user} · Exploración ${exploration.visited}/${exploration.target}`,
-      exploration.newlyUnlocked
-        ? 'Participaste en tres biomas distintos. Recompensa cosmética gratis.'
-        : 'Apoya con taps en otros biomas para desbloquear tu marco.',
+      exploration.newlyUnlocked ? 'MARCO EXPLORADOR' : `${shortUser(user)} · ${exploration.visited}/${exploration.target}`,
+      exploration.newlyUnlocked ? '3 biomas completos · Gratis' : 'Juega en otro bioma',
       '#A3E635',
       avatarUrl,
       user,
       '🧭',
-      exploration.newlyUnlocked ? 'RECOMPENSA' : 'META',
+      exploration.newlyUnlocked ? 'PREMIO' : 'META',
       2400
     );
   }
@@ -596,7 +604,7 @@ bus.on('action:instant', ({ team, kind, user, avatarUrl, giftName, mult = 1 }) =
       synth.duck(2000); synth.playSFX('shield');
       sim.pushShockwave(sim.safeCenterX, by, 72, '#22D3EE', 3);
       sim.pushBadge(sim.safeCenterX, by + (team === 'A' ? 24 : -24), `+${heal} HP 🛡️3s`, '#67E8F9');
-      showCenterBanner('🛡️ ESCUDO DE EMERGENCIA (3s)', `${user} protegió el núcleo de ${base.name} (+${heal} HP)`, '#22D3EE', avatarUrl, user);
+      pushNotificationDock(`ESCUDO 3s · ${base.key}`, `${shortUser(user)} +${heal} HP`, '#22D3EE', avatarUrl, user, '🛡️', 'EVENTO');
       updateBaseHUD(); updatePanicAlerts();
     } else {
       elixir.addElixir(team, 1.5 * mult);
@@ -604,7 +612,7 @@ bus.on('action:instant', ({ team, kind, user, avatarUrl, giftName, mult = 1 }) =
       synth.duck(1800); synth.playSFX('frenzy');
       sim.pushShockwave(sim.safeCenterX, by, 64, '#FBBF24', 2.5);
       sim.pushBadge(sim.safeCenterX, by + (team === 'A' ? 24 : -24), '⚔️ SOBRECARGA +⚡', '#FDE047');
-      showCenterBanner('⚔️ SOBRECARGA OFENSIVA', `${user} impulsó a ${base.name} (Tanque + Elixir)`, base.color, avatarUrl, user);
+      pushNotificationDock(`SOBRECARGA ${base.key}`, `${shortUser(user)} · Tanque +1.5⚡`, base.color, avatarUrl, user, '⚔️', 'EVENTO');
     }
   } else if (kind === 'EMP') {
     const enemyTeam: TeamId = team === 'A' ? 'B' : 'A';
@@ -616,8 +624,8 @@ bus.on('action:instant', ({ team, kind, user, avatarUrl, giftName, mult = 1 }) =
     sim.applyEmpToUnits(enemyTeam, dur);
     elixir.applyEmpSlow(enemyTeam, slowSec);
     synth.duck(2400); synth.playSFX('emp'); state.shake = Math.max(state.shake, 7);
-    const capTag = useCount > 1 ? ` · ${Math.round(scale * 100)}%` : '';
-    showCenterBanner(`⚡ PULSO EMP (${enemyBase.empTimer}s${capTag})`, `${user} apagó torretas de ${enemyBase.name}`, '#22D3EE', avatarUrl, user);
+    const capTag = useCount > 1 ? ` ${Math.round(scale * 100)}%` : '';
+    showCenterBanner(`EMP ${enemyBase.empTimer}s${capTag}`, `${shortUser(user)} apagó a ${shortTeamLabel(enemyBase)}`, '#22D3EE', avatarUrl, user);
   } else if (kind === 'CYBER_HACK') {
     const { scale, useCount } = impactLimiter.consume(team, 'hack');
     const maxSteal = Math.max(1, Math.round((state.frenzyActive ? 4 : 3) * scale));
@@ -625,9 +633,9 @@ bus.on('action:instant', ({ team, kind, user, avatarUrl, giftName, mult = 1 }) =
     const missing = Math.max(0, maxSteal - stolen);
     if (missing > 0) elixir.addElixir(team, missing * 2);
     synth.duck(2400); synth.playSFX('hack');
-    const capTag = useCount > 1 ? ` (${Math.round(scale * 100)}%)` : '';
-    const detail = missing > 0 ? `robó ${stolen} y recuperó +${missing * 2}⚡` : `robó ${stolen} unidades enemigas`;
-    showCenterBanner(`👾 CYBER HACK${capTag}`, `${user} ${detail}`, '#C084FC', avatarUrl, user);
+    const capTag = useCount > 1 ? ` ${Math.round(scale * 100)}%` : '';
+    const detail = missing > 0 ? `${shortUser(user)} robó ${stolen} (+${missing * 2}⚡)` : `${shortUser(user)} robó ${stolen} tropas`;
+    pushNotificationDock(`CYBER HACK${capTag}`, detail, '#C084FC', avatarUrl, user, '👾', 'EVENTO');
   } else if (kind === 'NUCLEAR') {
     const clean = user.startsWith('@') ? user : `@${user}`;
     takeoverQueue.push({ team, clean, avatarUrl, giftName: giftName || 'Nuclear' });
@@ -635,7 +643,7 @@ bus.on('action:instant', ({ team, kind, user, avatarUrl, giftName, mult = 1 }) =
   } else if (kind === 'METEOR_SHOWER') {
     state.meteorRainRemaining += 9;
     synth.duck(3000); synth.playSFX('meteor_alert');
-    showCenterBanner('☄️ LLUVIA DE METEORITOS', `${user} • Impactos orbitales en zona central`, '#FB923C');
+    pushNotificationDock('METEORITOS', `${user} · Impactos al centro`, '#FB923C', '', '', '☄️', 'EVENTO');
   }
 });
 
@@ -659,8 +667,8 @@ bus.on('game:chat', ({ user, comment, avatarUrl }) => {
   }
   const tObj = aligned === 'A' ? state.teamA : state.teamB;
   pushNotificationDock(
-    `${clean} → ${tObj.name}`,
-    `¡Bando elegido! Tus taps ahora apoyan a ${tObj.key}`,
+    `${shortUser(clean)} → ${tObj.key}`,
+    `Bando listo · tus taps suman`,
     tObj.color,
     avatarUrl,
     clean,
@@ -715,8 +723,8 @@ bus.on('game:tap', ({ user, count, avatarUrl, forcedTeam, isDemo = false }) => {
       triggerFactionGoalReward(team);
     } else if (progress.leveledUp) {
       pushNotificationDock(
-        `⭐ ${clean} · Nv.${progress.level} ${progress.title}`,
-        `Progreso personal: ${progress.xp} XP (${progress.progressPct}%)`,
+        `${shortUser(clean)} · Nv.${progress.level}`,
+        `${progress.title} · ${progress.xp} XP`,
         '#FBBF24',
         avatarUrl,
         clean,
@@ -726,8 +734,8 @@ bus.on('game:tap', ({ user, count, avatarUrl, forcedTeam, isDemo = false }) => {
       );
     } else if (progress.milestoneLabel) {
       pushNotificationDock(
-        `${clean} · ${progress.milestoneLabel}`,
-        `Nv.${progress.level} ${progress.title} · Apoyando a ${tObj.key}`,
+        `${shortUser(clean)} · ${progress.milestoneLabel}`,
+        `Nv.${progress.level} · Equipo ${tObj.key}`,
         tObj.color,
         avatarUrl,
         clean,
@@ -768,7 +776,7 @@ bus.on('game:follow', ({ user, avatarUrl, isDemo = false }) => {
   elixir.addElixir(team, 0.8);
   elixir.enqueueOrder({ team, kind: 'INFANTRY', priority: 2, user: clean, avatarUrl });
   addMVPPoints(clean, team, avatarUrl, MVP_PARTICIPATION_POINTS.FOLLOW, isDemo);
-  showLastCommander(clean, avatarUrl, `¡siguió! → +⚡ Soldados · Nv.${progress.level}`, '#34D399');
+  showLastCommander(clean, avatarUrl, `¡Siguió! +⚡ · Nv.${progress.level}`, '#34D399');
   synth.playSFX('follow');
 });
 
@@ -785,7 +793,7 @@ bus.on('game:share', ({ user, avatarUrl, isDemo = false }) => {
   const team = resolveUserTeam(clean);
 
   if (!isDemo) trackShareForViewer(clean, avatarUrl);
-  const progress = personalProgress.recordAction(
+  personalProgress.recordAction(
     clean,
     'share',
     1,
@@ -796,12 +804,14 @@ bus.on('game:share', ({ user, avatarUrl, isDemo = false }) => {
   elixir.addElixir(team, 1.5);
   elixir.enqueueOrder({ team, kind: 'JET', priority: 2, user: clean, avatarUrl });
   addMVPPoints(clean, team, avatarUrl, MVP_PARTICIPATION_POINTS.SHARE, isDemo);
-  showCenterBanner(
-    '✈️ ATAQUE POR COMPARTIR',
-    `${clean} (Nv.${progress.level}) → Jet para ${(team === 'A' ? state.teamA : state.teamB).name}`,
+  pushNotificationDock(
+    'JET POR SHARE',
+    `${shortUser(clean)} → ${shortTeamLabel(team === 'A' ? state.teamA : state.teamB)}`,
     '#38BDF8',
     avatarUrl,
-    clean
+    clean,
+    '✈️',
+    'EVENTO'
   );
 });
 
@@ -846,7 +856,7 @@ bus.on('game:gift', ({ team, tier, delta, user, giftName, avatarUrl, coins, isDe
   }
 
   const tObj = team === 'A' ? state.teamA : state.teamB;
-  const rankSuffix = progress.leveledUp ? ` · ⭐ Nv.${progress.level}` : ` · Nv.${progress.level}`;
+  const rankSuffix = progress.leveledUp ? ` · ⭐Nv.${progress.level}` : ` · Nv.${progress.level}`;
   showLastCommander(
     clean,
     avatarUrl,
@@ -890,7 +900,7 @@ function activateFrenzy(): void {
   $('frenzyVignette').classList.add('active');
   updateFrenzyGaugeUI();
   syncTimerPill();
-  pushNotificationDock('⚡ FRENESÍ x2 ACTIVO', 'Elixir doble durante 20 segundos', '#FBBF24', '', '', '⚡', 'BOOST', 3000);
+  pushNotificationDock('FRENESÍ x2', 'Elixir doble por 20s', '#FBBF24', '', '', '⚡', 'BOOST', 3000);
   synth.duck(2400); synth.playSFX('frenzy');
   elixir.addElixir('A', 2.5); elixir.addElixir('B', 2.5);
 }
@@ -908,7 +918,7 @@ function activateSuddenDeath(atTimerEnd = false): void {
   state.roundTimeLeft = state.suddenDeathDurationSec;
   $('suddenDeathVignette').classList.add('active');
   syncTimerPill();
-  pushNotificationDock('💀 MUERTE SÚBITA · 01:00', 'La primera torre que caiga decide la ronda', '#ef4444', '', '', '💀', 'FINAL', 4200);
+  pushNotificationDock('MUERTE SÚBITA', '1 min · 1ª torre decide', '#ef4444', '', '', '💀', 'FINAL', 4200);
   synth.duck(2400); synth.playSFX('sudden_horn');
 }
 
@@ -934,7 +944,7 @@ function activateTowerDecay(): void {
   $('cardBaseB').classList.remove('emp-hit');
   updateFrenzyGaugeUI();
   syncTimerPill();
-  pushNotificationDock('⏳ COLAPSO DE TORRES', 'Combate detenido · las defensas pierden vida hasta que caiga una', '#ef4444', '', '', '⏳', 'FINAL', 4500);
+  pushNotificationDock('COLAPSO', 'Las torres pierden vida', '#ef4444', '', '', '⏳', 'FINAL', 4500);
   synth.duck(2400); synth.playSFX('sudden_horn');
 }
 
@@ -1354,11 +1364,11 @@ installErrorMonitoring();
 installBrowserLifecycle({
   onOffline: () => {
     $('wsTopText').textContent = 'Sin conexión';
-    pushNotificationDock('Sin conexión', 'El juego continúa en modo local', '#F59E0B', '', '', '📡', 'OFFLINE', 3000);
+    pushNotificationDock('Sin conexión', 'Modo local activo', '#F59E0B', '', '', '📡', 'OFFLINE', 3000);
   },
   onOnline: () => {
     $('wsTopText').textContent = tikfinity.isEnabled ? 'Reconectando' : 'Online';
-    pushNotificationDock('Conexión restaurada', 'La aplicación volvió a estar online', '#34D399', '', '', '🌐', 'ONLINE', 2400);
+    pushNotificationDock('Online', 'Conexión restaurada', '#34D399', '', '', '🌐', 'ONLINE', 2400);
   },
 });
 const arenaRuntime = new ArenaRuntime({
