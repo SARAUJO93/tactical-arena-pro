@@ -286,8 +286,9 @@ function updateOnboardingTicker(): void {
     `${weekly.badge} ${weekly.title}`,
     `❤️ ${state.personalTapThreshold} Taps = Tropas`,
     `⚔️ ${goalLikes} Likes = Asalto / Escudo 3s`,
+    '🏆 Copa de 64: cada título reinicia un nuevo cuadro',
     '🔥 Vuelve cada día para subir tu racha y ganar XP gratis',
-    `🎟️ Sube tu Pase Gratis con Taps`,
+    '🎟️ Sube tu Pase Gratis con Taps',
     '🧭 Participa en 3 biomas y desbloquea el marco Explorador',
     '🤝 Los taps sin equipo apoyan al bando que va perdiendo',
   ];
@@ -1051,7 +1052,7 @@ function triggerVictory(
       `🏆 ${cupRoundNames[roundIndex]} · SIGUIENTE: ${nextWorldCupMatch.teamA.name} vs ${nextWorldCupMatch.teamB.name}`;
     $('vicChallengerBanner').classList.remove('hidden');
   } else if (worldCupCompleted && state.worldCup.champion) {
-    $('vicChallengerBanner').textContent = `🏆 CAMPEÓN DE LA COPA: ${state.worldCup.champion.name}`;
+    $('vicChallengerBanner').textContent = `🏆 CAMPEÓN DE LA COPA: ${state.worldCup.champion.name} · NUEVA COPA EN MARCHA`;
     $('vicChallengerBanner').classList.remove('hidden');
   } else {
     $('vicChallengerBanner').classList.toggle('hidden', !nextChallenger);
@@ -1077,10 +1078,7 @@ function triggerVictory(
         if (restartTimer) clearInterval(restartTimer);
         restartTimer = null;
         if (worldCupCompleted) {
-          biomeVote.reset();
-          const overlay = $('victoryOverlay');
-          overlay.classList.remove('show');
-          overlay.classList.add('hidden');
+          startWorldCup();
           return;
         }
         const selectedBiome = biomeVote.finish();
@@ -1165,15 +1163,11 @@ function resetSession(): void {
   renderTop3MVP();
   updateFactionHUD();
   renderTelemetry();
-  resetRound();
+  startWorldCup();
 }
 
 function startNewTournament(): void {
-  prepareNewTournament();
-  nextBiomeOverride = null;
-  resetRound();
-  logWsEvent(`Nuevo torneo iniciado · ${state.teamA.name} vs ${state.teamB.name}`);
-  savePersistentState();
+  startWorldCup();
 }
 
 function startWorldCup(): void {
@@ -1182,7 +1176,7 @@ function startWorldCup(): void {
   settings.renderRosterChips();
   applyTeamUI();
   resetRound();
-  logWsEvent(`Copa Mundial iniciada · ${openingMatch.teamA?.name} vs ${openingMatch.teamB?.name}`);
+  logWsEvent(`Copa Mundial de 64 iniciada · ${openingMatch.teamA?.name} vs ${openingMatch.teamB?.name}`);
   savePersistentState();
 }
 
@@ -1199,12 +1193,13 @@ function applyTeamUI(): void {
   $('nameB').textContent = state.teamB.name; $('keyBadgeB').textContent = state.teamB.key;
   $('hpBarB').style.background = state.teamB.color; $('hpPctB').style.color = state.teamB.color;
 
+  const isWorldCup = state.worldCup.status === 'in_progress';
   const streakBadgeA = $('streakBadgeA');
-  streakBadgeA.classList.toggle('hidden', !(state.tournamentMode && state.teamA.streak >= 1));
+  streakBadgeA.classList.toggle('hidden', !(!isWorldCup && state.tournamentMode && state.teamA.streak >= 1));
   streakBadgeA.setAttribute('aria-label', `Racha de victorias: ${state.teamA.streak}`);
   $('streakCountA').textContent = String(state.teamA.streak);
   const streakBadgeB = $('streakBadgeB');
-  streakBadgeB.classList.toggle('hidden', !(state.tournamentMode && state.teamB.streak >= 1));
+  streakBadgeB.classList.toggle('hidden', !(!isWorldCup && state.tournamentMode && state.teamB.streak >= 1));
   streakBadgeB.setAttribute('aria-label', `Racha de victorias: ${state.teamB.streak}`);
   $('streakCountB').textContent = String(state.teamB.streak);
 
@@ -1241,6 +1236,8 @@ w.triggerVictory = triggerVictory;
 w.simulateFollowEvent = simulateFollow;
 w.simulateShareEvent = simulateShare;
 w.triggerMeteorShower = triggerMeteorShower;
+w.startWorldCup = startWorldCup;
+void prepareNewTournament;
 
 const settings = new SettingsPanel({
   synth,
@@ -1293,15 +1290,17 @@ bus.on('tikfinity:status', ({ status, detail }) => {
   }
 });
 
-// Arranque
+// Arranque siempre en esquema Copa Mundial de 64 selecciones
 window.addEventListener('pointerdown', () => synth.unlock(), { passive: true });
 loadPersistentState();
-if (state.worldCup.status === 'completed') state.roundActive = false;
 biomeRotation.restore(state.currentRoundBiome, state.biomeRotationRemaining);
 state.biomeRotationRemaining = biomeRotation.getRemainingIds();
 setActiveBiome(state.currentRoundBiome);
 externalObservability.start();
 resetIfNeeded();
+if (state.worldCup.status !== 'in_progress') {
+  prepareWorldCup();
+}
 const initialWeekly = getWeeklyEventForDate();
 factionGoals.setTargetLikes(initialWeekly.factionGoalLikes);
 settings.renderRosterChips();
@@ -1315,7 +1314,7 @@ synth.init();
 synth.applyMusicMode();
 announceActiveBiome();
 savePersistentState();
-logWsEvent(`Tactical Arena V3.2.0 listo · ${initialWeekly.title}.`);
+logWsEvent(`Tactical Arena V3.2.0 · Copa de 64 activa · ${initialWeekly.title}.`);
 void registerOfflineCache();
 installErrorMonitoring();
 installBrowserLifecycle({
