@@ -1,6 +1,7 @@
 import { TeamId } from '../core/EventBus';
 
 export interface ShortcutActions {
+  closeModals: () => void;
   togglePanel: () => void;
   toggleTelemetry: () => void;
   toggleLeague: () => void;
@@ -17,6 +18,11 @@ export interface ShortcutActions {
 
 export function initInputShortcuts(actions: ShortcutActions): void {
   window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      actions.closeModals();
+      return;
+    }
+
     const tag = (e.target as HTMLElement | null)?.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
 

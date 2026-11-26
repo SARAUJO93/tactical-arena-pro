@@ -1235,6 +1235,7 @@ const settings = new SettingsPanel({
 });
 
 initInputShortcuts({
+  closeModals: () => settings.closeAllModals(),
   togglePanel: () => settings.togglePanel(),
   toggleTelemetry: () => settings.toggleTelemetry(),
   toggleLeague: () => settings.toggleLeague(),

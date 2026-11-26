@@ -96,6 +96,14 @@ export class SettingsPanel {
     this.syncControlButtons();
   }
 
+  closeAllModals(): void {
+    state.panelOpen = false;
+    state.telemetryOpen = false;
+    $('controlPanel').classList.add('hidden');
+    $('telemetryModal').classList.add('hidden');
+    $('leagueModal')?.classList.add('hidden');
+  }
+
   togglePanel(): void {
     state.panelOpen = !state.panelOpen;
     state.telemetryOpen = false;
