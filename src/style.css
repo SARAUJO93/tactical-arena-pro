@@ -630,6 +630,201 @@ html, body {
 .team-flag-fallback.team-flag-hero { font-size: 62px; line-height: 1; }
 .team-flag-fallback.team-flag-inline { font-size: 13px; line-height: 1; }
 
+/* ===================== INTRO PREVIA DE BATALLA (3s VS) ===================== */
+#battleIntroOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 38;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 18px;
+  padding: 58px 0 74px;
+  pointer-events: none;
+  overflow: hidden;
+  --bi-color-a: var(--team-a);
+  --bi-color-b: var(--team-b);
+  transition: opacity 0.35s ease;
+}
+#battleIntroOverlay.leaving {
+  opacity: 0;
+}
+.bi-bg-wash {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bi-color-a) 26%, rgba(4, 10, 22, 0.56)) 0%,
+    rgba(4, 10, 22, 0.28) 46%,
+    rgba(4, 10, 22, 0.28) 54%,
+    color-mix(in srgb, var(--bi-color-b) 26%, rgba(4, 10, 22, 0.56)) 100%
+  );
+  backdrop-filter: blur(1.5px);
+  -webkit-backdrop-filter: blur(1.5px);
+}
+.bi-slot {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.bi-top {
+  align-items: flex-end;
+  padding-left: 26px;
+}
+.bi-bottom {
+  align-items: flex-start;
+  padding-right: 26px;
+}
+.bi-ribbon-frame {
+  width: 100%;
+  padding: 3px;
+  background: linear-gradient(135deg, #FEF08A 0%, #F59E0B 48%, #B45309 100%);
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.72));
+}
+.bi-ribbon-top {
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 18px 50%);
+}
+.bi-ribbon-top .bi-ribbon-inner {
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 17px 50%);
+  padding: 10px 16px 10px 30px;
+  background: linear-gradient(105deg, color-mix(in srgb, var(--bi-color-a) 68%, #071120) 0%, #0B1528 82%);
+}
+.bi-ribbon-bottom {
+  clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 50%, 100% 100%, 0 100%);
+}
+.bi-ribbon-bottom .bi-ribbon-inner {
+  clip-path: polygon(0 0, 100% 0, calc(100% - 17px) 50%, 100% 100%, 0 100%);
+  padding: 10px 30px 10px 16px;
+  background: linear-gradient(255deg, color-mix(in srgb, var(--bi-color-b) 68%, #071120) 0%, #0B1528 82%);
+}
+.bi-ribbon-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 66px;
+}
+.bi-flag-box {
+  width: 58px;
+  height: 38px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.55));
+}
+.bi-team-copy {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+.bi-copy-right {
+  text-align: right;
+}
+.bi-team-eyebrow {
+  font-size: 7.5px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #FEF08A;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+.bi-team-name {
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #FFFFFF;
+  line-height: 1.08;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 2px 0 #020617, 0 5px 14px rgba(0, 0, 0, 0.9);
+}
+.bi-meta-row {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  color: #FDE047;
+  padding: 2px 14px;
+  text-shadow: 0 2px 0 #020617, 0 3px 10px rgba(0, 0, 0, 0.95);
+}
+.bi-meta-left { align-self: flex-start; padding-left: 18px; }
+.bi-meta-right { align-self: flex-end; padding-right: 18px; }
+
+.bi-center-vs {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
+.bi-vs-shield {
+  width: 68px;
+  height: 74px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(160deg, #60A5FA 0%, #2563EB 52%, #1D4ED8 100%);
+  clip-path: polygon(50% 0%, 100% 18%, 100% 70%, 50% 100%, 0% 70%, 0% 18%);
+  box-shadow: inset 0 0 0 4px #FACC15;
+  filter: drop-shadow(0 0 16px rgba(250, 204, 21, 0.65)) drop-shadow(0 8px 16px rgba(0, 0, 0, 0.7));
+}
+.bi-vs-shield span {
+  font-size: 25px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #FFFFFF;
+  text-shadow: 0 3px 0 #0F172A, 0 0 12px rgba(255, 255, 255, 0.45);
+}
+.bi-stage-tag {
+  font-size: 8.5px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  color: #F8FAFC;
+  padding: 3px 11px;
+  border-radius: 999px;
+  background: rgba(5, 11, 22, 0.86);
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.55);
+}
+
+#battleIntroOverlay.show .bi-top {
+  animation: biSlideFromRight 0.44s var(--ease-out) both;
+}
+#battleIntroOverlay.show .bi-bottom {
+  animation: biSlideFromLeft 0.44s var(--ease-out) 0.06s both;
+}
+#battleIntroOverlay.show .bi-vs-shield {
+  animation: biVsPop 0.48s cubic-bezier(0.18, 0.9, 0.32, 1.25) 0.14s both;
+}
+#battleIntroOverlay.leaving .bi-top {
+  animation: biExitRight 0.35s ease-in forwards;
+}
+#battleIntroOverlay.leaving .bi-bottom {
+  animation: biExitLeft 0.35s ease-in forwards;
+}
+
+@keyframes biSlideFromRight {
+  0% { opacity: 0; transform: translateX(105%); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@keyframes biSlideFromLeft {
+  0% { opacity: 0; transform: translateX(-105%); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@keyframes biExitRight {
+  to { opacity: 0; transform: translateX(105%); }
+}
+@keyframes biExitLeft {
+  to { opacity: 0; transform: translateX(-105%); }
+}
+@keyframes biVsPop {
+  0% { opacity: 0; transform: scale(0.25) rotate(-10deg); }
+  70% { opacity: 1; transform: scale(1.14) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
 /* ===================== VICTORIA EN 2 FASES ===================== */
 #victoryOverlay {
   position: absolute; inset: 0; z-index: 42;
@@ -773,8 +968,8 @@ html, body {
 /* FASE 2: PANTALLA DEDICADA DE 20s EN RECUADRO ESPECÍFICO */
 .vic-intermission-card {
   position: relative; z-index: 2; width: 100%;
-  display: flex; flex-direction: column; align-items: center; gap: 9px;
-  padding: 15px 13px 14px; border-radius: 20px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 14px 12px 13px; border-radius: 20px;
   background: linear-gradient(160deg, rgba(14, 24, 42, 0.94), rgba(6, 11, 20, 0.97));
   border: 1.5px solid color-mix(in srgb, var(--vic-accent) 45%, rgba(226, 232, 240, 0.28));
   box-shadow:
@@ -786,7 +981,7 @@ html, body {
 .vic-intermission-head {
   width: 100%;
   display: flex; align-items: center; justify-content: space-between; gap: 6px;
-  padding-bottom: 8px;
+  padding-bottom: 7px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 .vic-intermission-eyebrow {
@@ -800,21 +995,123 @@ html, body {
 }
 .vic-mvp-card {
   width: 100%; display: flex; align-items: center; gap: 10px; text-align: left;
-  padding: 9px 11px; border-radius: 13px;
+  padding: 8px 10px; border-radius: 13px;
   background: linear-gradient(120deg, rgba(251, 191, 36, 0.14), rgba(255, 255, 255, 0.04));
   border: 1px solid rgba(245, 207, 135, 0.34);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
-.vic-mvp-card img { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; border: 2px solid #ffd77c; flex-shrink: 0; }
+.vic-mvp-card img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid #ffd77c; flex-shrink: 0; }
 .vic-mvp-label { display: flex; align-items: center; gap: 4px; color: #ffd77c; font-size: 7.4px; font-weight: 900; letter-spacing: 0.14em; }
 .vic-mvp-label .ui-icon { width: 10px; height: 10px; }
-#vicMvpUser { color: #fff; font-size: 11.5px; font-weight: 800; }
-#vicMvpScore { color: #d8e5f3; font-size: 8.5px; }
-.vic-next-goal {
-  width: 100%; padding: 6px 10px; border-radius: 10px;
-  color: #d9f99d; font-size: 8.4px; font-weight: 800;
-  background: rgba(132, 204, 22, 0.1); border: 1px solid rgba(190, 242, 100, 0.26);
+#vicMvpUser { color: #fff; font-size: 11px; font-weight: 800; }
+#vicMvpScore { color: #d8e5f3; font-size: 8.2px; }
+
+/* PROGRESO DE COPA MUNDIAL EN INTERMEDIO 20s */
+.vic-cup-progress {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 9px;
+  border-radius: 12px;
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.34);
 }
+.vic-cup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 7.4px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: #FDE68A;
+  text-transform: uppercase;
+}
+.vic-cup-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+  width: 100%;
+}
+.vic-cup-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.vic-cup-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 7.4px;
+  font-weight: 900;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1.5px solid rgba(148, 163, 184, 0.35);
+  color: #94A3B8;
+}
+.vic-cup-step.done .vic-cup-dot {
+  background: rgba(16, 185, 129, 0.24);
+  border-color: #34D399;
+  color: #6EE7B7;
+}
+.vic-cup-step.active .vic-cup-dot {
+  background: linear-gradient(145deg, #FDE047, #F59E0B);
+  border-color: #FEF9C3;
+  color: #0F172A;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.6);
+}
+.vic-cup-line {
+  flex: 1;
+  height: 2px;
+  border-radius: 99px;
+  background: rgba(148, 163, 184, 0.25);
+}
+.vic-cup-line.done {
+  background: linear-gradient(90deg, #34D399, #FBBF24);
+}
+.vic-cup-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.vic-cup-queue-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 7.8px;
+  font-weight: 800;
+  color: #E2E8F0;
+}
+.vic-cup-queue-tag {
+  font-size: 6.8px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(251, 191, 36, 0.2);
+  color: #FEF08A;
+  flex-shrink: 0;
+}
+.vic-cup-queue-tag.later {
+  background: rgba(148, 163, 184, 0.16);
+  color: #CBD5E1;
+}
+.vic-cup-queue-teams {
+  flex: 1;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .vic-challenger {
   width: 100%; padding: 7px 10px; border-radius: 11px;
   border: 1px solid rgba(125, 211, 252, 0.48);
@@ -932,6 +1229,7 @@ html, body {
 .btn:focus-visible,
 .util-btn:focus-visible,
 .league-tab:focus-visible,
+.cup-round-pill:focus-visible,
 .league-period-sel button:focus-visible,
 .inp:focus-visible,
 .sel:focus-visible,
@@ -972,10 +1270,10 @@ input[type="range"]:focus-visible {
 .kpi-label { font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }
 .kpi-val { font-size: 14px; font-weight: 800; color: #F8FAFC; margin-top: 2px; }
 
-/* ========================= LIGA (Fase A) ========================= */
+/* ========================= LIGA (Fase A + Bracket Copa) ========================= */
 .league-tabs {
   display: flex;
-  gap: 4px;
+  gap: 3px;
   margin-bottom: 10px;
   background: rgba(0, 0, 0, 0.38);
   padding: 4px;
@@ -987,11 +1285,12 @@ input[type="range"]:focus-visible {
   background: transparent;
   border: 1px solid transparent;
   color: var(--text-dim);
-  border-radius: 9px;
-  padding: 6px 4px;
-  font-size: 10px;
+  border-radius: 8px;
+  padding: 6px 2px;
+  font-size: 9px;
   font-weight: 800;
   cursor: pointer;
+  white-space: nowrap;
   transition: all 0.15s;
 }
 .league-tab.active {
@@ -1001,6 +1300,140 @@ input[type="range"]:focus-visible {
 }
 .league-tab:hover:not(.active) {
   background: rgba(255, 255, 255, 0.06);
+}
+
+/* BRACKET COPA MUNDIAL EN LIGA */
+.cup-summary-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 11px;
+  background: rgba(251, 191, 36, 0.09);
+  border: 1px solid rgba(251, 191, 36, 0.34);
+  margin-bottom: 8px;
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #FEF08A;
+}
+.cup-round-pills {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.cup-round-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 5px 2px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cup-round-pill strong { font-size: 10px; font-weight: 900; }
+.cup-round-pill span { font-size: 7.5px; font-weight: 700; opacity: 0.85; }
+.cup-round-pill.done {
+  border-color: rgba(52, 211, 153, 0.42);
+  color: #6EE7B7;
+}
+.cup-round-pill.active {
+  background: rgba(251, 191, 36, 0.2);
+  border-color: rgba(251, 191, 36, 0.72);
+  color: #FEF08A;
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.22);
+}
+.cup-match-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cup-match-card {
+  border-radius: 10px;
+  padding: 7px 9px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.cup-match-card.is-live {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.72);
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.2);
+}
+.cup-match-card.is-done {
+  border-color: rgba(52, 211, 153, 0.3);
+}
+.cup-match-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+.cup-match-badge {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 7.5px;
+  font-weight: 900;
+}
+.cup-match-badge.live { background: rgba(239, 68, 68, 0.26); color: #FCA5A5; border: 1px solid rgba(248, 113, 113, 0.55); }
+.cup-match-badge.done { background: rgba(16, 185, 129, 0.2); color: #6EE7B7; }
+.cup-match-badge.pending { background: rgba(148, 163, 184, 0.14); color: #94A3B8; }
+
+.cup-team-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 6px;
+  border-radius: 7px;
+  background: rgba(2, 6, 23, 0.45);
+  font-size: 10px;
+  font-weight: 800;
+  color: #E2E8F0;
+}
+.cup-team-row.is-winner {
+  background: rgba(16, 185, 129, 0.16);
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  color: #FFFFFF;
+}
+.cup-team-row.is-loser {
+  opacity: 0.48;
+  text-decoration: line-through;
+}
+.cup-team-row.is-tbd {
+  opacity: 0.55;
+  font-style: italic;
+}
+.cup-team-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cup-team-tag {
+  font-size: 8.5px;
+  font-weight: 900;
+  color: #34D399;
+}
+.cup-bracket-pair {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-left: 10px;
+  border-left: 2px solid rgba(251, 191, 36, 0.4);
+  margin-bottom: 6px;
 }
 
 .league-row {

@@ -1,6 +1,7 @@
 import './style.css';
 import { bus, TeamId } from './core/EventBus';
 import {
+  ELO_INITIAL,
   loadPersistentState, makeBaseState, makeSideDefenseState, MAX_BASE_HP,
   prepareNewTournament,
   prepareWorldCup,
@@ -29,6 +30,7 @@ import { installErrorMonitoring } from './monitoring/ErrorMonitor';
 import { ExternalObservability } from './monitoring/ExternalObservability';
 import { installBrowserLifecycle } from './app/BrowserLifecycle';
 import { registerOfflineCache } from './app/OfflineCache';
+import { PlatformManager } from './platforms/PlatformManager';
 import {
   calculateGiftMvpPoints,
   calculateUnderdogElixirBonus,
@@ -36,7 +38,6 @@ import {
   RoundImpactLimiter,
 } from './systems/BalanceEconomy';
 import {
-  getBiomeExplorationProgress,
   PersonalProgressTracker,
   recordBiomeExploration,
 } from './systems/PersonalProgress';
@@ -50,7 +51,12 @@ import {
 } from './systems/SeasonPass';
 import { recordDailyVisit } from './systems/DailyStreak';
 import { getWeeklyEventForDate } from './systems/WeeklySchedule';
-import { recordWorldCupWinner } from './systems/WorldCup';
+import {
+  countCompletedWorldCupMatches,
+  getCurrentWorldCupMatch,
+  recordWorldCupWinner,
+  WORLD_CUP_TOTAL_MATCHES,
+} from './systems/WorldCup';
 import { advanceTowerDecay, getCrownScore, getDefenseHealthPercent, resolveTimeoutWinner } from './systems/CrownScoring';
 import type { TimeoutDecisionReason } from './systems/CrownScoring';
 
@@ -59,6 +65,7 @@ const notificationDock = new NotificationDock($);
 const synth = new SynthEngine();
 const elixir = new ElixirSystem();
 const tikfinity = new TikFinityClient();
+const platformManager = new PlatformManager();
 const externalObservability = new ExternalObservability('3.2.0');
 const impactLimiter = new RoundImpactLimiter();
 const personalProgress = new PersonalProgressTracker();
@@ -69,6 +76,140 @@ const lastJoinAnnounceAt = new Map<string, number>();
 let nextBiomeOverride: BiomeTheme['id'] | null = null;
 
 const VICTORY_CELEBRATION_MS = 3000;
+const BATTLE_INTRO_MS = 3000;
+const BATTLE_INTRO_EXIT_MS = 350;
+
+let battleIntroLeaveTimer: ReturnType<typeof setTimeout> | null = null;
+let battleIntroEndTimer: ReturnType<typeof setTimeout> | null = null;
+
+function hideBattleIntro(): void {
+  if (battleIntroLeaveTimer) {
+    clearTimeout(battleIntroLeaveTimer);
+    battleIntroLeaveTimer = null;
+  }
+  if (battleIntroEndTimer) {
+    clearTimeout(battleIntroEndTimer);
+    battleIntroEndTimer = null;
+  }
+  const ov = document.getElementById('battleIntroOverlay');
+  if (ov) ov.classList.add('hidden');
+  ov?.classList.remove('show', 'leaving');
+  if (!state.takeoverActive) state.timeScale = 1.0;
+}
+
+function playBattleIntro(): void {
+  const ov = document.getElementById('battleIntroOverlay');
+  if (!ov) return;
+  hideBattleIntro();
+
+  const eloA = state.teamRecords[state.teamA.key]?.elo ?? ELO_INITIAL;
+  const eloB = state.teamRecords[state.teamB.key]?.elo ?? ELO_INITIAL;
+  const streakA = state.teamA.streak >= 2 ? ` · 🔥${state.teamA.streak}` : '';
+  const streakB = state.teamB.streak >= 2 ? `🔥${state.teamB.streak} · ` : '';
+
+  ov.style.setProperty('--bi-color-a', state.teamA.color);
+  ov.style.setProperty('--bi-color-b', state.teamB.color);
+  $('biFlagA').innerHTML = renderTeamFlagHtml(state.teamA.key, state.teamA.flag, 'hero');
+  $('biFlagB').innerHTML = renderTeamFlagHtml(state.teamB.key, state.teamB.flag, 'hero');
+  $('biNameA').textContent = state.teamA.name;
+  $('biNameB').textContent = state.teamB.name;
+  $('biKeyA').textContent = state.teamA.key;
+  $('biKeyB').textContent = state.teamB.key;
+  $('biMetaA').textContent = `🏆 ${eloA} ELO${streakA}`;
+  $('biMetaB').textContent = `${streakB}${eloB} ELO 🏆`;
+
+  const biome = getActiveBiome();
+  const cupRoundNames = ['RONDA DE 64', 'RONDA DE 32', 'OCTAVOS', 'CUARTOS', 'SEMIFINAL', 'FINAL'];
+  let stageLabel = `${biome.icon} ${biome.name}`;
+  if (state.worldCup.status === 'in_progress') {
+    const match = getCurrentWorldCupMatch(state.worldCup);
+    const roundIdx = match ? state.worldCup.rounds.findIndex((r) => r.includes(match)) : -1;
+    if (roundIdx >= 0) stageLabel = `🏆 ${cupRoundNames[roundIdx]} · ${biome.icon} ${biome.name}`;
+  }
+  $('biStageTag').textContent = stageLabel;
+
+  ov.classList.remove('hidden', 'show', 'leaving');
+  void ov.offsetWidth;
+  ov.classList.add('show');
+  state.timeScale = 0;
+
+  battleIntroLeaveTimer = setTimeout(() => {
+    battleIntroLeaveTimer = null;
+    ov.classList.add('leaving');
+  }, BATTLE_INTRO_MS - BATTLE_INTRO_EXIT_MS);
+
+  battleIntroEndTimer = setTimeout(() => {
+    hideBattleIntro();
+  }, BATTLE_INTRO_MS);
+}
+
+function renderWorldCupIntermissionProgress(cupWasActive: boolean): void {
+  const el = document.getElementById('vicWorldCupProgress');
+  if (!el) return;
+  if (!cupWasActive) {
+    el.classList.add('hidden');
+    el.innerHTML = '';
+    return;
+  }
+
+  const cup = state.worldCup;
+  const labels = ['64', '32', '16', '8', '4', '🏆'];
+  const roundNames = ['RONDA DE 64', 'RONDA DE 32', 'OCTAVOS', 'CUARTOS', 'SEMIFINAL', 'FINAL'];
+  const completed = countCompletedWorldCupMatches(cup);
+  const currentMatch = getCurrentWorldCupMatch(cup);
+  const activeRoundIdx = currentMatch
+    ? cup.rounds.findIndex((r) => r.includes(currentMatch))
+    : cup.status === 'completed'
+      ? labels.length - 1
+      : 0;
+
+  const stepperHtml = labels.map((label, idx) => {
+    const isDone = cup.status === 'completed' || idx < activeRoundIdx;
+    const isActive = cup.status !== 'completed' && idx === activeRoundIdx;
+    const cls = isActive ? 'active' : isDone ? 'done' : '';
+    const line = idx < labels.length - 1
+      ? `<span class="vic-cup-line${isDone ? ' done' : ''}"></span>`
+      : '';
+    return `<div class="vic-cup-step ${cls}"><span class="vic-cup-dot">${label}</span></div>${line}`;
+  }).join('');
+
+  let headRight = `${completed}/${WORLD_CUP_TOTAL_MATCHES}`;
+  if (cup.status === 'in_progress' && currentMatch && activeRoundIdx >= 0) {
+    const round = cup.rounds[activeRoundIdx];
+    const matchPos = round.indexOf(currentMatch) + 1;
+    headRight = `${roundNames[activeRoundIdx]} · ${matchPos}/${round.length}`;
+  } else if (cup.status === 'completed') {
+    headRight = 'COPA COMPLETADA';
+  }
+
+  const upcomingRows: string[] = [];
+  if (cup.status === 'in_progress' && currentMatch?.teamA && currentMatch.teamB) {
+    upcomingRows.push(`
+      <div class="vic-cup-queue-row">
+        <span class="vic-cup-queue-tag">SIGUE</span>
+        <span class="vic-cup-queue-teams">${renderTeamFlagHtml(currentMatch.teamA.key, currentMatch.teamA.flag, 'inline')} ${escapeHtml(currentMatch.teamA.name)} vs ${renderTeamFlagHtml(currentMatch.teamB.key, currentMatch.teamB.flag, 'inline')} ${escapeHtml(currentMatch.teamB.name)}</span>
+      </div>`);
+
+    const allPending = cup.rounds.flat().filter((m) => m.winner === null && m !== currentMatch && m.teamA && m.teamB);
+    const afterNext = allPending[0];
+    if (afterNext?.teamA && afterNext.teamB) {
+      upcomingRows.push(`
+        <div class="vic-cup-queue-row">
+          <span class="vic-cup-queue-tag later">LUEGO</span>
+          <span class="vic-cup-queue-teams">${renderTeamFlagHtml(afterNext.teamA.key, afterNext.teamA.flag, 'inline')} ${escapeHtml(afterNext.teamA.name)} vs ${renderTeamFlagHtml(afterNext.teamB.key, afterNext.teamB.flag, 'inline')} ${escapeHtml(afterNext.teamB.name)}</span>
+        </div>`);
+    }
+  }
+
+  el.innerHTML = `
+    <div class="vic-cup-head">
+      <span>🏆 PROGRESO COPA 64</span>
+      <span class="tabular">${headRight}</span>
+    </div>
+    <div class="vic-cup-stepper">${stepperHtml}</div>
+    ${upcomingRows.length ? `<div class="vic-cup-queue">${upcomingRows.join('')}</div>` : ''}`;
+  el.classList.remove('hidden');
+}
 
 function shortTeamLabel(base: { name: string; key: string }): string {
   return base.name.length <= 9 ? base.name : base.key;
@@ -260,11 +401,12 @@ function trackDailyStreak(rec: PlayerRecord, avatarUrl: string): void {
 }
 
 function updateFrenzyGaugeUI(): void {
+  const preset = platformManager.getActivePreset();
   const pct = state.frenzyActive ? 100 : Math.min(100, Math.round((state.globalTapCount / state.frenzyGoalLikes) * 100));
   $('frenzyGaugeFill').style.width = `${pct}%`;
   $('frenzyGaugePct').textContent = state.frenzyActive ? 'x2!' : `${pct}%`;
   $('frenzyGaugeCount').textContent = state.frenzyActive ? `${state.frenzyTimeLeft}s` : `${state.globalTapCount}/${state.frenzyGoalLikes}`;
-  $('tapRuleBadge').textContent = `❤️ ${state.personalTapThreshold} = +⚡`;
+  $('tapRuleBadge').textContent = `${preset.labels.tapRulePrefix} ${state.personalTapThreshold} = +⚡`;
 }
 
 function syncTimerPill(): void {
@@ -295,16 +437,13 @@ let tickerIdx = 0;
 function updateOnboardingTicker(): void {
   const weekly = getWeeklyEventForDate();
   const goalLikes = factionGoals.getSnapshot('A').target;
-  const tips = [
-    `${weekly.badge} ${weekly.title}`,
-    `❤️ ${state.personalTapThreshold} Taps = Tropas`,
-    `⚔️ ${goalLikes} Likes = Asalto / Escudo`,
-    '🏆 Copa de 64 · Ciclo continuo',
-    '🔥 Vuelve diario = +XP al Pase',
-    '🎟️ Sube tu Pase Gratis con Taps',
-    '🧭 3 biomas = Marco Explorador',
-    '🤝 Taps libres = Al de menos HP',
-  ];
+  const preset = platformManager.getActivePreset();
+  const dynamicTips = preset.labels.tickerTips.map((t) =>
+    t
+      .replace('{tap}', String(state.personalTapThreshold))
+      .replace('{goal}', String(goalLikes))
+  );
+  const tips = [`${weekly.badge} ${weekly.title}`, ...dynamicTips];
   const tip = tips[tickerIdx % tips.length];
   tickerIdx++;
 
@@ -496,14 +635,15 @@ function renderTop3MVP(): void {
 
 function renderGiftLegend(): void {
   const [sA, sB, sTank, , , sEmp, sHack, sNuke] = state.giftSlots;
+  const cur = platformManager.getActivePreset().labels.currencyEmoji;
   const icon = (s: typeof sA) => (s.imgUrl ? `<img src="${escapeHtml(s.imgUrl)}" alt="" />` : `<span>${escapeHtml(s.emoji)}</span>`);
   $('giftLegendGrid').innerHTML = `
-    <div class="gift-cell"><div class="gift-icon-wrap">${icon(sA)}</div><div class="gift-title" style="color:${state.teamA.color};">${escapeHtml(state.teamA.key)}:${escapeHtml(sA.display)}</div><div class="gift-sub">1⚡ Inf</div><div class="coin-badge">🪙${sA.coins}</div></div>
-    <div class="gift-cell"><div class="gift-icon-wrap">${icon(sB)}</div><div class="gift-title" style="color:${state.teamB.color};">${escapeHtml(state.teamB.key)}:${escapeHtml(sB.display)}</div><div class="gift-sub">1⚡ Inf</div><div class="coin-badge">🪙${sB.coins}</div></div>
-    <div class="gift-cell"><div class="gift-icon-wrap">${icon(sTank)}</div><div class="gift-title">${escapeHtml(sTank.display)}</div><div class="gift-sub">2⚡ Tanque</div><div class="coin-badge">🪙${sTank.coins}</div></div>
-    <div class="gift-cell emp-cell"><div class="gift-icon-wrap">${icon(sEmp)}</div><div class="gift-title" style="color:#67E8F9;">${escapeHtml(sEmp.display)}</div><div class="gift-sub">EMP -50%⚡</div><div class="coin-badge">🪙${sEmp.coins}</div></div>
-    <div class="gift-cell hack-cell"><div class="gift-icon-wrap">${icon(sHack)}</div><div class="gift-title" style="color:#E9D5FF;">${escapeHtml(sHack.display)}</div><div class="gift-sub">Hack x3</div><div class="coin-badge">🪙${sHack.coins}</div></div>
-    <div class="gift-cell nuke-cell"><div class="gift-icon-wrap">${icon(sNuke)}</div><div class="gift-title" style="color:#FDE047;">${escapeHtml(sNuke.display)}</div><div class="gift-sub">Nuclear+3⚡</div><div class="coin-badge">🪙${sNuke.coins}</div></div>`;
+    <div class="gift-cell"><div class="gift-icon-wrap">${icon(sA)}</div><div class="gift-title" style="color:${state.teamA.color};">${escapeHtml(state.teamA.key)}:${escapeHtml(sA.display)}</div><div class="gift-sub">1⚡ Inf</div><div class="coin-badge">${cur}${sA.coins}</div></div>
+    <div class="gift-cell"><div class="gift-icon-wrap">${icon(sB)}</div><div class="gift-title" style="color:${state.teamB.color};">${escapeHtml(state.teamB.key)}:${escapeHtml(sB.display)}</div><div class="gift-sub">1⚡ Inf</div><div class="coin-badge">${cur}${sB.coins}</div></div>
+    <div class="gift-cell"><div class="gift-icon-wrap">${icon(sTank)}</div><div class="gift-title">${escapeHtml(sTank.display)}</div><div class="gift-sub">2⚡ Tanque</div><div class="coin-badge">${cur}${sTank.coins}</div></div>
+    <div class="gift-cell emp-cell"><div class="gift-icon-wrap">${icon(sEmp)}</div><div class="gift-title" style="color:#67E8F9;">${escapeHtml(sEmp.display)}</div><div class="gift-sub">EMP -50%⚡</div><div class="coin-badge">${cur}${sEmp.coins}</div></div>
+    <div class="gift-cell hack-cell"><div class="gift-icon-wrap">${icon(sHack)}</div><div class="gift-title" style="color:#E9D5FF;">${escapeHtml(sHack.display)}</div><div class="gift-sub">Hack x3</div><div class="coin-badge">${cur}${sHack.coins}</div></div>
+    <div class="gift-cell nuke-cell"><div class="gift-icon-wrap">${icon(sNuke)}</div><div class="gift-title" style="color:#FDE047;">${escapeHtml(sNuke.display)}</div><div class="gift-sub">Nuclear+3⚡</div><div class="coin-badge">${cur}${sNuke.coins}</div></div>`;
 }
 
 // =========================================================================
@@ -526,13 +666,13 @@ function trackTapForViewer(user: string, avatarUrl: string, team: TeamId | null,
     savePersistentState();
     pushNotificationDock(
       exploration.newlyUnlocked ? 'MARCO EXPLORADOR' : `${shortUser(user)} · ${exploration.visited}/${exploration.target}`,
-      exploration.newlyUnlocked ? '3 biomas completos · Gratis' : 'Juega en otro bioma',
+      exploration.newlyUnlocked ? `${shortUser(user)} · 3/3 biomas · Gratis` : 'Biomas explorados · 3 = Marco',
       '#A3E635',
       avatarUrl,
       user,
       '🧭',
       exploration.newlyUnlocked ? 'PREMIO' : 'META',
-      2400
+      exploration.newlyUnlocked ? 3200 : 2400
     );
   }
   checkSeasonPassUnlock(user, avatarUrl);
@@ -989,6 +1129,7 @@ function triggerVictory(
 ): void {
   if (!state.roundActive) return;
 
+  hideBattleIntro();
   const weekly = getWeeklyEventForDate();
   nextBiomeOverride = null;
   const roundLog = finalizeRound(winner, {
@@ -1028,6 +1169,7 @@ function triggerVictory(
   } else {
     openBiomeVote(weekly.featuredBiomeId);
   }
+  renderWorldCupIntermissionProgress(cupWasActive);
 
   if (roundLog.mvp) checkSeasonPassUnlock(roundLog.mvp.user, roundLog.mvp.avatarUrl);
   savePersistentState();
@@ -1052,7 +1194,6 @@ function triggerVictory(
   const mvpRec = state.playerRecords[topRound.user];
   const mvpCosmetic = getCosmeticFrameFromBadges(mvpRec?.badges);
   const seasonPeak = mvpRec ? Math.max(topRound.score, mvpRec.peaks.maxRoundScore) : topRound.score;
-  const exploration = getBiomeExplorationProgress(mvpRec?.badges);
 
   const crownScoreA = getCrownScore(state.teamA);
   const crownScoreB = getCrownScore(state.teamB);
@@ -1086,20 +1227,13 @@ function triggerVictory(
   vicAvatar.style.borderColor = mvpCosmetic ? mvpCosmetic.ringColor : '#ffd77c';
   $('vicMvpUser').textContent = mvpCosmetic ? `${mvpCosmetic.emblem} ${topRound.user}` : topRound.user;
   $('vicMvpScore').textContent = `${topRound.score.toLocaleString()} pts · Récord S${String(state.currentSeason.index).padStart(2, '0')}: ${seasonPeak.toLocaleString()}`;
-  $('vicNextGoal').textContent = exploration.complete
-    ? '🧭 Marco Explorador desbloqueado'
-    : `🧭 Próxima meta del MVP: ${exploration.visited}/${exploration.target} biomas · participa en otro`;
   $('vicStreakText').classList.toggle('hidden', !(!cupWasActive && state.tournamentMode && winObj.streak >= 1));
   $('vicStreakText').textContent = `🔥 ${winObj.streak}`;
-  const cupRoundNames = ['RONDA DE 64', 'RONDA DE 32', 'OCTAVOS', 'CUARTOS', 'SEMIFINAL', 'FINAL'];
-  if (nextWorldCupMatch?.teamA && nextWorldCupMatch.teamB) {
-    const roundIndex = state.worldCup.rounds.findIndex((round) => round.includes(nextWorldCupMatch));
-    $('vicChallengerBanner').textContent =
-      `🏆 ${cupRoundNames[roundIndex]} · SIGUIENTE: ${nextWorldCupMatch.teamA.name} vs ${nextWorldCupMatch.teamB.name}`;
-    $('vicChallengerBanner').classList.remove('hidden');
-  } else if (worldCupCompleted && state.worldCup.champion) {
+  if (worldCupCompleted && state.worldCup.champion) {
     $('vicChallengerBanner').textContent = `🏆 CAMPEÓN DE LA COPA: ${state.worldCup.champion.name} · NUEVA COPA EN MARCHA`;
     $('vicChallengerBanner').classList.remove('hidden');
+  } else if (cupWasActive) {
+    $('vicChallengerBanner').classList.add('hidden');
   } else {
     $('vicChallengerBanner').classList.toggle('hidden', !nextChallenger);
     if (nextChallenger) $('vicChallengerBanner').textContent = `⚔️ NUEVO RETADOR: ${nextChallenger.flag} ${nextChallenger.name}`;
@@ -1208,12 +1342,14 @@ function resetRound(): void {
   $('vicStageCelebration').classList.remove('hidden');
   $('vicStageIntermission').classList.add('hidden');
   $('vicBiomeVote').classList.add('hidden');
+  $('vicWorldCupProgress').classList.add('hidden');
   applyTeamUI();
   updateBaseHUD();
   updateFactionHUD();
   updateFrenzyGaugeUI();
   syncTimerPill();
   announceActiveBiome();
+  playBattleIntro();
   savePersistentState();
 }
 
@@ -1317,6 +1453,7 @@ w.startWorldCup = startWorldCup;
 const settings = new SettingsPanel({
   synth,
   tikfinity,
+  platformManager,
   applyTeamUI,
   renderGiftLegend,
   updatePanicAlerts,
@@ -1374,6 +1511,7 @@ bus.on('tikfinity:status', ({ status, detail }) => {
 window.addEventListener('pointerdown', () => synth.unlock(), { passive: true });
 const hasSavedState = Boolean(localStorage.getItem(STORAGE_KEY));
 loadPersistentState();
+platformManager.init();
 biomeRotation.restore(state.currentRoundBiome, state.biomeRotationRemaining);
 state.biomeRotationRemaining = biomeRotation.getRemainingIds();
 setActiveBiome(state.currentRoundBiome);
@@ -1394,8 +1532,9 @@ elixir.resetRound();
 synth.init();
 synth.applyMusicMode();
 announceActiveBiome();
+playBattleIntro();
 savePersistentState();
-logWsEvent(`Tactical Arena V3.2.0 · ${state.worldCup.status === 'in_progress' ? 'Copa de 64 activa' : 'Torneo activo'} · ${initialWeekly.title}.`);
+logWsEvent(`Tactical Arena V3.2.0 · ${platformManager.getActivePreset().name} · ${state.worldCup.status === 'in_progress' ? 'Copa de 64 activa' : 'Torneo activo'} · ${initialWeekly.title}.`);
 void registerOfflineCache();
 installErrorMonitoring();
 installBrowserLifecycle({

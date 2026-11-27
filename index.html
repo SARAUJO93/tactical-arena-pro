@@ -85,7 +85,7 @@
 
       <!-- BARRA SUPERIOR DE UTILIDADES -->
       <div id="topUtilBar">
-        <div id="wsPillTop" class="glass-soft util-btn" title="Estado WebSocket TikFinity (H)" aria-label="Estado WebSocket TikFinity">
+        <div id="wsPillTop" class="glass-soft util-btn" title="Estado WebSocket (H)" aria-label="Estado WebSocket">
           <span id="wsTopDot" style="width:6px;height:6px;border-radius:50%;background:#64748B;"></span>
           <span id="wsTopText">Offline</span>
         </div>
@@ -94,7 +94,7 @@
             <span id="demoDotTop" style="width:6px;height:6px;border-radius:50%;background:#34D399;"></span>
             <span style="color:#FDE68A;">DEMO</span>
           </button>
-          <button id="btnQuickSafe" class="glass-soft util-btn" style="color:#FDA4AF;" title="Safe Zones TikTok (S)" aria-label="Alternar guía de Safe Zones">SAFE</button>
+          <button id="btnQuickSafe" class="glass-soft util-btn" style="color:#FDA4AF;" title="Safe Zones (S)" aria-label="Alternar guía de Safe Zones">SAFE</button>
           <button id="btnOpenTelemetry" class="glass-soft util-btn util-icon" title="Telemetría (I)" aria-label="Abrir telemetría">
             <svg class="ui-icon" aria-hidden="true"><use href="#icon-telemetry"></use></svg>
           </button>
@@ -127,7 +127,7 @@
         <div id="notificationProgress" class="notification-progress"></div>
       </div>
 
-      <!-- GUÍA SAFE ZONES TIKTOK -->
+      <!-- GUÍA SAFE ZONES -->
       <div id="safeZoneGuide" class="hidden">
         <div class="sz-band sz-top">CONTROLES SUPERIORES · 10.4%</div>
         <div class="sz-band sz-bottom">CHAT Y REGALOS · 14%</div>
@@ -136,7 +136,7 @@
         <div class="sz-frame"></div>
       </div>
 
-      <!-- ZONA SEGURA DE TIKTOK LIVE -->
+      <!-- ZONA SEGURA -->
       <div id="safeZoneHUD">
 
         <div style="display:flex;flex-direction:column;gap:4px;width:100%;">
@@ -313,6 +313,44 @@
 
       </div>
 
+      <!-- INTRO PREVIA DE BATALLA (3s ESTILO VS) -->
+      <div id="battleIntroOverlay" class="hidden" aria-hidden="true">
+        <div class="bi-bg-wash"></div>
+
+        <div class="bi-slot bi-top">
+          <div class="bi-ribbon-frame bi-ribbon-top">
+            <div class="bi-ribbon-inner">
+              <div id="biFlagA" class="bi-flag-box"></div>
+              <div class="bi-team-copy">
+                <div class="bi-team-eyebrow">SECTOR NORTE · ESCRIBE <strong id="biKeyA">MX</strong></div>
+                <div id="biNameA" class="bi-team-name">MÉXICO</div>
+              </div>
+            </div>
+          </div>
+          <div id="biMetaA" class="bi-meta-row bi-meta-left tabular">🏆 1500 ELO</div>
+        </div>
+
+        <div class="bi-center-vs">
+          <div class="bi-vs-shield">
+            <span>VS</span>
+          </div>
+          <div id="biStageTag" class="bi-stage-tag">🌿 BOSQUE ANCESTRAL</div>
+        </div>
+
+        <div class="bi-slot bi-bottom">
+          <div class="bi-ribbon-frame bi-ribbon-bottom">
+            <div class="bi-ribbon-inner">
+              <div class="bi-team-copy bi-copy-right">
+                <div class="bi-team-eyebrow">SECTOR SUR · ESCRIBE <strong id="biKeyB">AR</strong></div>
+                <div id="biNameB" class="bi-team-name">ARGENTINA</div>
+              </div>
+              <div id="biFlagB" class="bi-flag-box"></div>
+            </div>
+          </div>
+          <div id="biMetaB" class="bi-meta-row bi-meta-right tabular">1500 ELO 🏆</div>
+        </div>
+      </div>
+
       <!-- CINEMÁTICA DE VICTORIA EN 2 FASES -->
       <div id="victoryOverlay" class="hidden" data-phase="celebration" role="dialog" aria-modal="true" aria-label="Resultado de batalla" aria-live="polite">
         <div class="vic-rays"></div>
@@ -349,7 +387,7 @@
           <div id="vicCrownScore" class="vic-crown-score" aria-live="polite">👑 CORONAS 0 — 0</div>
         </div>
 
-        <!-- FASE 2: PANTALLA DEDICADA DE 20s PARA MVP, PRÓXIMO DUELO Y VOTACIÓN -->
+        <!-- FASE 2: PANTALLA DEDICADA DE 20s PARA MVP, PROGRESO DE COPA Y VOTACIÓN -->
         <div id="vicStageIntermission" class="vic-intermission-card hidden">
           <div class="vic-intermission-head">
             <span class="vic-intermission-eyebrow">RESUMEN Y SIGUIENTE BATALLA</span>
@@ -368,7 +406,7 @@
             </div>
           </div>
 
-          <div id="vicNextGoal" class="vic-next-goal">🧭 Participa en 3 biomas para desbloquear el marco Explorador</div>
+          <div id="vicWorldCupProgress" class="vic-cup-progress hidden" aria-live="polite"></div>
           <div id="vicChallengerBanner" class="vic-challenger hidden">⚔️ NUEVO RETADOR: 🇨🇴 COLOMBIA</div>
           <div id="vicBiomeVote" class="vic-biome-vote hidden" aria-live="polite"></div>
 
@@ -388,6 +426,21 @@
             <div style="font-size:9px;color:#B6C3D4;margin-top:2px;">Elixir, Biomas &amp; Audio Épico · H: Ajustes · I: Telemetría · L: Liga · S: Safe · Esc: Cerrar</div>
           </div>
           <button id="btnClosePanel" class="btn">Cerrar ✕</button>
+        </div>
+
+        <div class="section-card" style="border-color:rgba(168,85,247,0.34);">
+          <div class="section-title">
+            <span style="color:#E9D5FF;">📡 Plataforma de Stream (Preset Modular)</span>
+            <span id="lblActivePlatform" style="color:#FDE68A;">🎵 TikTok Live</span>
+          </div>
+          <div class="grid-3">
+            <button data-platform-id="tiktok" class="btn btn-rose" style="font-size:9.5px;padding:6px 4px;">🎵 TikTok</button>
+            <button data-platform-id="twitch" class="btn" style="font-size:9.5px;padding:6px 4px;">🟣 Twitch</button>
+            <button data-platform-id="facebook" class="btn" style="font-size:9.5px;padding:6px 4px;">🔵 FB Live</button>
+          </div>
+          <div style="font-size:8.5px;color:#B6C3D4;margin-top:5px;">
+            Cambia Safe Zones, moneda, textos y tabla de regalos sin perder tu configuración de TikTok.
+          </div>
         </div>
 
         <div class="grid-2" style="margin-bottom:10px;">
@@ -482,12 +535,15 @@
 
         <div class="section-card">
           <div class="section-title">
-            <span style="color:#7DD3FC;">TikFinity WebSocket (Auto-Reconnect)</span>
+            <span id="wsSectionTitle" style="color:#7DD3FC;">TikFinity WebSocket (Auto-Reconnect)</span>
             <span id="wsStatus" style="color:#B6C3D4;">Offline</span>
           </div>
           <div style="display:flex;gap:6px;">
-            <input id="wsUrl" class="inp" type="text" value="ws://localhost:21213/" aria-label="URL WebSocket de TikFinity" style="font-family:monospace;" />
+            <input id="wsUrl" class="inp" type="text" value="ws://localhost:21213/" aria-label="URL WebSocket" style="font-family:monospace;" />
             <button id="btnWsConnect" class="btn btn-primary" style="flex-shrink:0;">Conectar</button>
+          </div>
+          <div id="wsSectionHint" style="font-size:8.5px;color:#B6C3D4;margin-top:5px;">
+            Conecta TikFinity local para recibir chat, likes y regalos de TikTok Live.
           </div>
         </div>
 
@@ -529,7 +585,7 @@
           <div style="overflow-x:auto;">
             <table class="gm-table">
               <thead>
-                <tr><th>Acción</th><th>IDs / Alias</th><th>🪙</th><th>PNG</th></tr>
+                <tr><th>Acción</th><th>IDs / Alias</th><th id="gmCurrencyHead">🪙</th><th>PNG</th></tr>
               </thead>
               <tbody id="giftMapperBody"></tbody>
             </table>
@@ -602,7 +658,7 @@
         </div>
 
         <div class="section-card">
-          <div class="section-title"><span>Log WebSocket TikFinity</span></div>
+          <div class="section-title"><span>Log WebSocket</span></div>
           <div id="telWsLog" style="font-family:monospace;font-size:9px;color:#B6C3D4;max-height:110px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;"></div>
         </div>
         <div class="section-card">
@@ -633,6 +689,7 @@
 
         <div class="league-tabs" role="tablist" aria-label="Secciones de la liga">
           <button class="league-tab active" role="tab" data-league-tab="standings">📊 Tabla</button>
+          <button class="league-tab" role="tab" data-league-tab="cup">🏆 Copa</button>
           <button class="league-tab" role="tab" data-league-tab="mvps">👑 MVPs</button>
           <button class="league-tab" role="tab" data-league-tab="gifters">💰 Gifters</button>
           <button class="league-tab" role="tab" data-league-tab="pass">🎟️ Pase</button>

@@ -7,6 +7,8 @@ import {
 } from '../core/GameState';
 import { SynthEngine } from '../audio/SynthEngine';
 import { TikFinityClient } from '../network/TikFinityClient';
+import { PlatformManager } from '../platforms/PlatformManager';
+import { PlatformId } from '../platforms/types';
 import { downloadFile, renderTelemetry } from '../systems/Telemetry';
 import { escapeHtml, hexToRgba } from '../utils/helpers';
 import { getAvatar } from '../systems/AvatarCache';
@@ -32,6 +34,7 @@ import {
 export interface SettingsPanelDeps {
   synth: SynthEngine;
   tikfinity: TikFinityClient;
+  platformManager: PlatformManager;
   applyTeamUI: () => void;
   renderGiftLegend: () => void;
   updatePanicAlerts: () => void;
@@ -52,7 +55,7 @@ export interface SettingsPanelDeps {
 
 const $ = (id: string) => document.getElementById(id)!;
 
-type LeagueTab = 'standings' | 'mvps' | 'gifters' | 'pass' | 'history';
+type LeagueTab = 'standings' | 'cup' | 'mvps' | 'gifters' | 'pass' | 'history';
 type GifterPeriod = 'today' | 'season' | 'lifetime';
 
 function compressImageFile(file: File, cb: (dataUrl: string) => void): void {
@@ -93,6 +96,7 @@ function fmtAgo(ts: number): string {
 export class SettingsPanel {
   private leagueTab: LeagueTab = 'standings';
   private gifterPeriod: GifterPeriod = 'season';
+  private cupRoundIdx: number | null = null;
 
   constructor(private deps: SettingsPanelDeps) {
     this.bindEvents();
@@ -135,6 +139,7 @@ export class SettingsPanel {
     $('controlPanel').classList.add('hidden');
     $('telemetryModal').classList.add('hidden');
     if (wasHidden) {
+      this.cupRoundIdx = null;
       modal.classList.remove('hidden');
       this.renderLeague(this.leagueTab);
     } else {
@@ -154,7 +159,29 @@ export class SettingsPanel {
     this.syncControlButtons();
   }
 
+  private syncPlatformControls(): void {
+    const preset = this.deps.platformManager.getActivePreset();
+    const lbl = document.getElementById('lblActivePlatform');
+    if (lbl) lbl.textContent = `${preset.icon} ${preset.name}`;
+    const gmHead = document.getElementById('gmCurrencyHead');
+    if (gmHead) gmHead.textContent = preset.labels.currencyEmoji;
+
+    const activeClassByPlatform: Record<PlatformId, string> = {
+      tiktok: 'btn btn-rose',
+      twitch: 'btn btn-purple',
+      facebook: 'btn btn-primary',
+    };
+    document.querySelectorAll<HTMLButtonElement>('[data-platform-id]').forEach((btn) => {
+      const id = btn.dataset.platformId as PlatformId | undefined;
+      if (!id) return;
+      btn.className = id === preset.id ? activeClassByPlatform[id] : 'btn';
+      btn.setAttribute('aria-pressed', String(id === preset.id));
+    });
+  }
+
   syncControlButtons(): void {
+    this.syncPlatformControls();
+
     $('btnDemoToggle').textContent = state.demoMode ? '⏹ Modo Demo: ON' : '▶ Modo Demo: OFF';
     $('btnDemoToggle').className = state.demoMode ? 'btn btn-emerald' : 'btn btn-amber';
     $('demoDotTop').style.background = state.demoMode ? '#34D399' : '#64748B';
@@ -206,14 +233,15 @@ export class SettingsPanel {
     $('lblMusicVol').textContent = `${volPct}%`;
     this.deps.synth.syncVolume();
 
+    const tapEmoji = this.deps.platformManager.getActivePreset().labels.tapRulePrefix;
     ($('sliderPersonalTap') as HTMLInputElement).value = String(state.personalTapThreshold);
-    $('lblPersonalTap').textContent = `${state.personalTapThreshold} ❤️`;
+    $('lblPersonalTap').textContent = `${state.personalTapThreshold} ${tapEmoji}`;
     ($('sliderFrenzyGoal') as HTMLInputElement).value = String(state.frenzyGoalLikes);
-    $('lblFrenzyGoal').textContent = `${state.frenzyGoalLikes} ❤️`;
+    $('lblFrenzyGoal').textContent = `${state.frenzyGoalLikes} ${tapEmoji}`;
     $('lblUnderdogTap').textContent = state.unalignedTapSupportsUnderdog ? 'ON' : 'OFF';
     $('lblUnderdogTap').style.color = state.unalignedTapSupportsUnderdog ? '#34D399' : '#94A3B8';
-    $('btnTestTapA').textContent = `❤️ +${state.personalTapThreshold} Tap Norte`;
-    $('btnTestTapB').textContent = `❤️ +${state.personalTapThreshold} Tap Sur`;
+    $('btnTestTapA').textContent = `${tapEmoji} +${state.personalTapThreshold} Tap Norte`;
+    $('btnTestTapB').textContent = `${tapEmoji} +${state.personalTapThreshold} Tap Sur`;
 
     this.deps.updateFrenzyGaugeUI();
   }
@@ -317,6 +345,7 @@ export class SettingsPanel {
             state.giftSlots[idx].imgUrl = url;
             this.renderGiftMapperTable();
             this.deps.renderGiftLegend();
+            this.deps.platformManager.saveCurrentPlatformGifts();
             savePersistentState();
           });
         }
@@ -329,12 +358,13 @@ export class SettingsPanel {
         state.giftSlots[idx].imgUrl = '';
         this.renderGiftMapperTable();
         this.deps.renderGiftLegend();
+        this.deps.platformManager.saveCurrentPlatformGifts();
         savePersistentState();
       });
     });
   }
 
-  /* ===================== LIGA (Fase A + Pase + Calendario) ===================== */
+  /* ===================== LIGA (Fase A + Bracket Copa + Pase) ===================== */
 
   private renderLeague(tab: LeagueTab): void {
     const season = state.currentSeason;
@@ -352,12 +382,29 @@ export class SettingsPanel {
     if (!content) return;
 
     if (tab === 'standings') content.innerHTML = this.renderStandingsTab();
+    else if (tab === 'cup') content.innerHTML = this.renderCupTab();
     else if (tab === 'mvps') content.innerHTML = this.renderMvpsTab();
     else if (tab === 'gifters') content.innerHTML = this.renderGiftersTab();
     else if (tab === 'pass') content.innerHTML = this.renderPassTab();
     else content.innerHTML = this.renderHistoryTab();
 
-    if (tab === 'gifters') {
+    if (tab === 'cup') {
+      content.querySelectorAll<HTMLButtonElement>('[data-cup-round]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          this.cupRoundIdx = Number(btn.dataset.cupRound);
+          this.renderLeague('cup');
+        });
+      });
+      content.querySelector<HTMLButtonElement>('[data-start-cup-inline]')?.addEventListener('click', () => {
+        this.deps.startWorldCup();
+        this.cupRoundIdx = 0;
+        this.renderLeague('cup');
+      });
+      const liveCard = content.querySelector<HTMLElement>('.cup-match-card.is-live');
+      if (liveCard) {
+        requestAnimationFrame(() => liveCard.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+      }
+    } else if (tab === 'gifters') {
       content.querySelectorAll<HTMLButtonElement>('[data-gifter-period]').forEach((btn) => {
         btn.addEventListener('click', () => {
           this.gifterPeriod = (btn.dataset.gifterPeriod as GifterPeriod) || 'season';
@@ -365,6 +412,117 @@ export class SettingsPanel {
         });
       });
     }
+  }
+
+  private renderCupTab(): string {
+    const cup = state.worldCup;
+    if (!cup.rounds.length) {
+      return `
+        <div class="league-empty">
+          <div style="margin-bottom:10px;">No hay una Copa Mundial de 64 activa en este momento.</div>
+          <button data-start-cup-inline class="btn btn-amber">🏆 Iniciar Copa de 64</button>
+        </div>`;
+    }
+
+    const roundLabels = ['64', '32', '16', '8', '4', '🏆'];
+    const roundTitles = [
+      'Ronda de 64',
+      'Ronda de 32',
+      'Octavos de Final',
+      'Cuartos de Final',
+      'Semifinales',
+      'Gran Final',
+    ];
+    const completed = countCompletedWorldCupMatches(cup);
+    const currentMatch = getCurrentWorldCupMatch(cup);
+    const liveRoundIdx = currentMatch
+      ? cup.rounds.findIndex((r) => r.includes(currentMatch))
+      : cup.status === 'completed'
+        ? cup.rounds.length - 1
+        : 0;
+
+    if (this.cupRoundIdx === null || this.cupRoundIdx < 0 || this.cupRoundIdx >= cup.rounds.length) {
+      this.cupRoundIdx = Math.max(0, liveRoundIdx);
+    }
+
+    const selectedIdx = this.cupRoundIdx;
+    const selectedRound = cup.rounds[selectedIdx];
+
+    const summaryText = cup.status === 'completed' && cup.champion
+      ? `🏆 Campeón: ${escapeHtml(cup.champion.name)}`
+      : `${roundTitles[Math.max(0, liveRoundIdx)]} · ${completed}/${WORLD_CUP_TOTAL_MATCHES} partidos`;
+
+    const pillsHtml = cup.rounds.map((round, idx) => {
+      const doneCount = round.filter((m) => m.winner !== null).length;
+      const isDone = doneCount === round.length;
+      const isActive = idx === selectedIdx;
+      const cls = isActive ? 'active' : isDone ? 'done' : '';
+      return `
+        <button data-cup-round="${idx}" class="cup-round-pill ${cls}">
+          <strong>${roundLabels[idx]}</strong>
+          <span class="tabular">${doneCount}/${round.length}</span>
+        </button>`;
+    }).join('');
+
+    const renderTeamRow = (
+      team: TeamPreset | null,
+      winnerKey: string | null
+    ) => {
+      if (!team) {
+        return `<div class="cup-team-row is-tbd"><span class="cup-team-name">Por definir</span></div>`;
+      }
+      const isWinner = winnerKey !== null && winnerKey === team.key;
+      const isLoser = winnerKey !== null && winnerKey !== team.key;
+      const cls = isWinner ? 'is-winner' : isLoser ? 'is-loser' : '';
+      return `
+        <div class="cup-team-row ${cls}">
+          ${renderTeamFlagHtml(team.key, team.flag, 'inline')}
+          <span class="cup-team-name">${escapeHtml(team.name)}</span>
+          ${isWinner ? '<span class="cup-team-tag">✓ AVANZA</span>' : ''}
+        </div>`;
+    };
+
+    const renderMatchCard = (match: typeof selectedRound[number], idx: number) => {
+      const isLive = currentMatch === match;
+      const isDone = match.winner !== null;
+      const cardCls = isLive ? 'is-live' : isDone ? 'is-done' : '';
+      const badge = isLive
+        ? '<span class="cup-match-badge live">🔴 EN VIVO</span>'
+        : isDone
+          ? '<span class="cup-match-badge done">✓ FINAL</span>'
+          : '<span class="cup-match-badge pending">⏳ PENDIENTE</span>';
+      return `
+        <div class="cup-match-card ${cardCls}">
+          <div class="cup-match-head">
+            <span>Partido #${idx + 1}</span>
+            ${badge}
+          </div>
+          ${renderTeamRow(match.teamA, match.winner?.key ?? null)}
+          ${renderTeamRow(match.teamB, match.winner?.key ?? null)}
+        </div>`;
+    };
+
+    let matchesHtml = '';
+    if (selectedIdx === 3 || selectedIdx === 4) {
+      for (let i = 0; i < selectedRound.length; i += 2) {
+        matchesHtml += `<div class="cup-bracket-pair">
+          ${renderMatchCard(selectedRound[i], i)}
+          ${selectedRound[i + 1] ? renderMatchCard(selectedRound[i + 1], i + 1) : ''}
+        </div>`;
+      }
+    } else {
+      matchesHtml = selectedRound.map((m, idx) => renderMatchCard(m, idx)).join('');
+    }
+
+    return `
+      <div class="cup-summary-bar">
+        <span>${summaryText}</span>
+        <span class="tabular">${Math.round((completed / WORLD_CUP_TOTAL_MATCHES) * 100)}%</span>
+      </div>
+      <div class="cup-round-pills">${pillsHtml}</div>
+      <div class="league-subhead">${roundTitles[selectedIdx]} (${selectedRound.length} ${selectedRound.length === 1 ? 'partido' : 'partidos'})</div>
+      <div class="cup-match-list">${matchesHtml}</div>
+    `;
   }
 
   private renderStandingsTab(): string {
@@ -548,6 +706,15 @@ export class SettingsPanel {
         <div class="league-pts tabular" style="color:#E2E8F0;font-size:10px;">${t.xpRequired} XP</div>
       </div>`).join('');
 
+    const explorerRow = `
+      <div class="league-row" style="border-color:rgba(163,230,53,0.45);">
+        <div class="league-pos" style="color:#A3E635;">★</div>
+        <div class="league-flag">🧭</div>
+        <div class="league-name" style="color:#A3E635;">Explorador</div>
+        <div class="league-meta">Marco Gratis</div>
+        <div class="league-pts tabular" style="color:#E2E8F0;font-size:10px;">3 Biomas</div>
+      </div>`;
+
     const playersWithXp = Object.values(state.playerRecords)
       .map((rec) => ({ rec, progress: getSeasonPassProgress(computeSeasonXp(rec)) }))
       .filter((entry) => entry.progress.xp > 0)
@@ -576,6 +743,7 @@ export class SettingsPanel {
       ${champBanner}
       <div class="league-subhead">🎟️ Pase Gratuito · Recompensas Cosméticas</div>
       ${tiersHtml}
+      ${explorerRow}
       <div class="league-subhead" style="margin-top:12px;">⭐ Top Progreso del Pase</div>
       ${playersHtml}
     `;
@@ -643,7 +811,24 @@ export class SettingsPanel {
   }
 
   private bindEvents(): void {
-    const { synth, tikfinity } = this.deps;
+    const { synth, tikfinity, platformManager } = this.deps;
+
+    // Selector modular de plataforma
+    document.querySelectorAll<HTMLButtonElement>('[data-platform-id]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.platformId as PlatformId | undefined;
+        if (!id || id === platformManager.getActiveId()) return;
+        platformManager.switchPlatform(id);
+        this.renderGiftMapperTable();
+        this.deps.renderGiftLegend();
+        this.deps.applyTeamUI();
+        this.syncControlButtons();
+      });
+    });
+
+    $('wsUrl').addEventListener('input', (e) => {
+      (e.target as HTMLInputElement).dataset.userEdited = '1';
+    });
 
     // Barra superior y modales
     $('btnOpenPanel').addEventListener('click', () => this.togglePanel());
@@ -831,7 +1016,7 @@ export class SettingsPanel {
       });
     });
 
-    // TikFinity WebSocket
+    // WebSocket
     $('btnWsConnect').addEventListener('click', () => {
       if (tikfinity.isEnabled) tikfinity.disconnect();
       else tikfinity.connect(($('wsUrl') as HTMLInputElement).value);
@@ -903,6 +1088,7 @@ export class SettingsPanel {
       this.renderGiftMapperTable();
       this.deps.renderGiftLegend();
       this.deps.updatePanicAlerts();
+      platformManager.saveCurrentPlatformGifts();
       savePersistentState();
       synth.playSFX('frenzy');
     });
