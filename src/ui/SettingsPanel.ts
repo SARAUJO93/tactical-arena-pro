@@ -811,7 +811,7 @@ export class SettingsPanel {
   }
 
   private bindEvents(): void {
-    const { synth, tikfinity, platformManager } = this.deps;
+    const { synth, platformManager } = this.deps;
 
     // Selector modular de plataforma
     document.querySelectorAll<HTMLButtonElement>('[data-platform-id]').forEach((btn) => {
@@ -1016,10 +1016,10 @@ export class SettingsPanel {
       });
     });
 
-    // WebSocket
+    // WebSocket / Plataforma activa
     $('btnWsConnect').addEventListener('click', () => {
-      if (tikfinity.isEnabled) tikfinity.disconnect();
-      else tikfinity.connect(($('wsUrl') as HTMLInputElement).value);
+      if (platformManager.isConnected) platformManager.disconnect();
+      else platformManager.connect(($('wsUrl') as HTMLInputElement).value);
     });
 
     // Torneo y Roster

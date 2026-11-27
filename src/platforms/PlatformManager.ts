@@ -1,9 +1,15 @@
 import { state, savePersistentState } from '../core/GameState';
+import { TikFinityClient } from '../network/TikFinityClient';
+import { FacebookAdapter } from './adapters/FacebookAdapter';
+import { TikTokAdapter } from './adapters/TikTokAdapter';
+import { TwitchAdapter } from './adapters/TwitchAdapter';
+import { PlatformAdapter } from './adapters/types';
 import { getPlatformPreset } from './presets';
 import { PlatformGiftSlot, PlatformId, PlatformPreset } from './types';
 
 const ACTIVE_PLATFORM_KEY = 'tactical_arena_active_platform_v1';
 const PLATFORM_GIFTS_KEY_PREFIX = 'tactical_arena_gifts_v1_';
+const PLATFORM_TARGET_KEY_PREFIX = 'tactical_arena_target_v1_';
 
 function isValidPlatformId(val: unknown): val is PlatformId {
   return val === 'tiktok' || val === 'twitch' || val === 'facebook';
@@ -11,9 +17,15 @@ function isValidPlatformId(val: unknown): val is PlatformId {
 
 export class PlatformManager {
   private currentId: PlatformId = 'tiktok';
+  private adapters: Record<PlatformId, PlatformAdapter>;
 
-  constructor() {
+  constructor(tikfinity: TikFinityClient) {
     this.currentId = this.loadSavedPlatformId();
+    this.adapters = {
+      tiktok: new TikTokAdapter(tikfinity),
+      twitch: new TwitchAdapter(),
+      facebook: new FacebookAdapter(),
+    };
   }
 
   getActiveId(): PlatformId {
@@ -24,6 +36,20 @@ export class PlatformManager {
     return getPlatformPreset(this.currentId);
   }
 
+  get isConnected(): boolean {
+    return this.adapters[this.currentId].isEnabled;
+  }
+
+  connect(target: string): void {
+    const clean = target.trim();
+    this.saveTarget(this.currentId, clean);
+    this.adapters[this.currentId].connect(clean);
+  }
+
+  disconnect(): void {
+    this.adapters[this.currentId].disconnect();
+  }
+
   private loadSavedPlatformId(): PlatformId {
     try {
       const raw = localStorage.getItem(ACTIVE_PLATFORM_KEY);
@@ -32,6 +58,24 @@ export class PlatformManager {
       // ignore storage errors
     }
     return 'tiktok';
+  }
+
+  private saveTarget(id: PlatformId, target: string): void {
+    try {
+      localStorage.setItem(`${PLATFORM_TARGET_KEY_PREFIX}${id}`, target);
+    } catch {
+      // ignore storage errors
+    }
+  }
+
+  private loadTarget(id: PlatformId): string {
+    try {
+      const saved = localStorage.getItem(`${PLATFORM_TARGET_KEY_PREFIX}${id}`);
+      if (saved !== null) return saved;
+    } catch {
+      // ignore storage errors
+    }
+    return getPlatformPreset(id).labels.wsDefaultUrl;
   }
 
   saveCurrentPlatformGifts(): void {
@@ -60,6 +104,13 @@ export class PlatformManager {
     return structuredClone(getPlatformPreset(id).defaultGiftSlots);
   }
 
+  private applyPlatformGifts(slots: PlatformGiftSlot[]): void {
+    state.giftSlots = state.giftSlots.map((existing, idx) => {
+      const next = slots[idx];
+      return next ? { ...existing, ...next } : existing;
+    });
+  }
+
   applyCurrentPresetToDOM(): void {
     const preset = this.getActivePreset();
     const root = document.documentElement;
@@ -82,24 +133,30 @@ export class PlatformManager {
     const wsHint = document.getElementById('wsSectionHint');
     if (wsHint) wsHint.textContent = preset.labels.wsHint;
     const wsUrlInput = document.getElementById('wsUrl') as HTMLInputElement | null;
-    if (wsUrlInput && !wsUrlInput.dataset.userEdited) {
-      wsUrlInput.value = preset.labels.wsDefaultUrl;
+    if (wsUrlInput) {
+      wsUrlInput.value = this.loadTarget(this.currentId);
+      wsUrlInput.placeholder =
+        this.currentId === 'twitch'
+          ? 'tu_canal o ws://localhost:8080/'
+          : this.currentId === 'facebook'
+            ? 'JWT Token de StreamElements o ws://'
+            : 'ws://localhost:21213/';
     }
   }
 
   init(): void {
-    // Si es la primera vez en TikTok, preserva los giftSlots actuales de state
     const hasTikTokSaved = Boolean(localStorage.getItem(`${PLATFORM_GIFTS_KEY_PREFIX}tiktok`));
     if (this.currentId === 'tiktok' && !hasTikTokSaved) {
       this.saveCurrentPlatformGifts();
     } else if (this.currentId !== 'tiktok') {
-      state.giftSlots = this.loadPlatformGifts(this.currentId);
+      this.applyPlatformGifts(this.loadPlatformGifts(this.currentId));
     }
     this.applyCurrentPresetToDOM();
   }
 
   switchPlatform(nextId: PlatformId): PlatformPreset {
     if (nextId !== this.currentId) {
+      this.disconnect();
       this.saveCurrentPlatformGifts();
       this.currentId = nextId;
       try {
@@ -107,11 +164,9 @@ export class PlatformManager {
       } catch {
         // ignore storage errors
       }
-      state.giftSlots = this.loadPlatformGifts(nextId);
+      this.applyPlatformGifts(this.loadPlatformGifts(nextId));
       savePersistentState();
     }
-    const wsUrlInput = document.getElementById('wsUrl') as HTMLInputElement | null;
-    if (wsUrlInput) delete wsUrlInput.dataset.userEdited;
     this.applyCurrentPresetToDOM();
     return this.getActivePreset();
   }

@@ -65,7 +65,7 @@ const notificationDock = new NotificationDock($);
 const synth = new SynthEngine();
 const elixir = new ElixirSystem();
 const tikfinity = new TikFinityClient();
-const platformManager = new PlatformManager();
+const platformManager = new PlatformManager(tikfinity);
 const externalObservability = new ExternalObservability('3.2.0');
 const impactLimiter = new RoundImpactLimiter();
 const personalProgress = new PersonalProgressTracker();
@@ -1495,7 +1495,7 @@ bus.on('tikfinity:status', ({ status, detail }) => {
   }
   previousWsStatus = status;
   if (status === 'connected') {
-    $('wsTopDot').style.background = '#34D399'; $('wsTopText').textContent = 'TikFinity ON';
+    $('wsTopDot').style.background = '#34D399'; $('wsTopText').textContent = `${platformManager.getActivePreset().shortName} ON`;
     $('wsStatus').textContent = 'Conectado'; $('btnWsConnect').textContent = 'Desconectar';
     if (state.demoMode) { state.demoMode = false; settings.syncControlButtons(); }
   } else if (status === 'reconnecting') {
@@ -1543,7 +1543,7 @@ installBrowserLifecycle({
     pushNotificationDock('Sin conexión', 'Modo local activo', '#F59E0B', '', '', '📡', 'OFFLINE', 3000);
   },
   onOnline: () => {
-    $('wsTopText').textContent = tikfinity.isEnabled ? 'Reconectando' : 'Online';
+    $('wsTopText').textContent = platformManager.isConnected ? 'Reconectando' : 'Online';
     pushNotificationDock('Online', 'Conexión restaurada', '#34D399', '', '', '🌐', 'ONLINE', 2400);
   },
 });
